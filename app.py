@@ -1179,6 +1179,7 @@ def render_price_detection(price_detection):
     </div>
     """)
 
+
     rows.append(f"""
     <div class="status-row">
         <span>Warrant Exercise Price</span>
