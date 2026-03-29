@@ -1,3 +1,4 @@
+import sqlite3
 import json
 import os
 import re
@@ -9,10 +10,11 @@ import yfinance as yf
 from bs4 import BeautifulSoup
 from flask import Flask, request, redirect, url_for, render_template
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
-from werkzeug.security import check_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
 
 app = Flask(__name__)
-app.secret_key = "cambia_esto_por_una_clave_muy_larga_y_privada"
+
+app.secret_key = os.environ.get("SECRET_KEY", "dev-key")
 
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -28,22 +30,30 @@ FINVIZ_HEADERS = {
 }
 
 REQUEST_TIMEOUT = 20
+DB_FILE = "app.db"
 STORAGE_FILE = "storage.json"
 
 # LOGIN SIMPLE
-ADMIN_USERNAME = "admin"
-ADMIN_PASSWORD_HASH = "scrypt:32768:8:1$UAb9bD8RvCI5LOKc$03ae102217a336159cf11fa8f99e8c22a124b14a2f96b2957d6c141fff447b9e8519490185fcd022173a030b72ce03276577456bd4622fc0b37509351dbad25f"
-
 
 class User(UserMixin):
-    def __init__(self, user_id):
-        self.id = user_id
+    def __init__(self, user_id, username, is_admin=False):
+        self.id = str(user_id)
+        self.username = username
+        self.is_admin = is_admin
 
 
 @login_manager.user_loader
 def load_user(user_id):
-    if user_id == ADMIN_USERNAME:
-        return User(user_id)
+    conn = get_db_connection()
+    row = conn.execute(
+        "SELECT id, username, is_admin FROM users WHERE id = ?",
+        (user_id,)
+    ).fetchone()
+    conn.close()
+
+    if row:
+        return User(row["id"], row["username"], bool(row["is_admin"]))
+
     return None
 
 
@@ -126,6 +136,48 @@ def format_market_cap(value):
         return f"{value:,.0f}"
     except Exception:
         return str(value)
+
+def get_db_connection():
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def init_db():
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            is_admin INTEGER NOT NULL DEFAULT 0
+        )
+    """)
+
+    conn.commit()
+    conn.close()
+
+
+def create_user(username, password, is_admin=False):
+    password_hash = generate_password_hash(password)
+
+    conn = get_db_connection()
+    conn.execute(
+        "INSERT INTO users (username, password_hash, is_admin) VALUES (?, ?, ?)",
+        (username, password_hash, int(is_admin))
+    )
+    conn.commit()
+    conn.close()
+
+
+init_db()
+
+try:
+    create_user("admin", "Ss02s52n1975o-!", True)
+except sqlite3.IntegrityError:
+    pass
 
 
 def format_number(value):
@@ -1127,6 +1179,7 @@ def render_price_detection(price_detection):
     </div>
     """)
 
+
     rows.append(f"""
     <div class="status-row">
         <span>Warrant Exercise Price</span>
@@ -1269,10 +1322,17 @@ def login():
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "").strip()
 
-        if username == ADMIN_USERNAME and check_password_hash(ADMIN_PASSWORD_HASH, password):
-            user = User(ADMIN_USERNAME)
+        conn = get_db_connection()
+        row = conn.execute(
+            "SELECT id, username, password_hash, is_admin FROM users WHERE username = ?",
+            (username,)
+        ).fetchone()
+        conn.close()
+
+        if row and check_password_hash(row["password_hash"], password):
+            user = User(row["id"], row["username"], bool(row["is_admin"]))
             login_user(user)
-            return redirect(url_for("home"))
+            return redirect(url_for("home"))  # 👈 aquí mantenemos "home"
         else:
             error = "Usuario o contraseña incorrectos"
 
@@ -1302,6 +1362,29 @@ def save_note_route():
         save_note(ticker, note)
     return redirect(url_for("home", ticker=ticker))
 
+@app.route("/create_user", methods=["GET", "POST"])
+@login_required
+def create_user_route():
+    if not current_user.is_admin:
+        return "No autorizado", 403
+
+    error = None
+    success = None
+    # test deploy
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "").strip()
+
+        if not username or not password:
+            error = "Faltan datos"
+        else:
+            try:
+                create_user(username, password)
+                success = "Usuario creado correctamente"
+            except sqlite3.IntegrityError:
+                error = "El usuario ya existe"
+
+    return render_template("create_user.html", error=error, success=success)
 
 @app.route("/", methods=["GET", "POST"])
 @login_required
