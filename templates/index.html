@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Stock Dilution Checker Pro</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="main-title">Stock Dilution Checker PRO</div>
+
+        <div class="layout">
+            <div>
+                <div class="sidebar-card">
+                    <div class="sidebar-title">Favorites</div>
+                    {{ sidebar_html|safe }}
+                </div>
+            </div>
+
+            <div>
+                <div class="search-card">
+                    <form method="POST">
+                        <label class="search-label">Introduce ticker (ej: TSLA)</label>
+                        <div class="search-row">
+                            <input type="text" name="ticker" placeholder="Ej: TSLA" value="{{ ticker }}">
+                            <button type="submit">Analizar</button>
+                        </div>
+                    </form>
+                </div>
+
+                {{ content|safe }}
+            </div>
+        </div>
+    </div>
+</body>
+</html>
