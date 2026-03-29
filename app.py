@@ -1,0 +1,1373 @@
+import json
+import os
+import re
+from datetime import datetime, timedelta
+from html import escape
+
+import requests
+import yfinance as yf
+from bs4 import BeautifulSoup
+from flask import Flask, request, redirect, url_for, render_template
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from werkzeug.security import check_password_hash
+
+app = Flask(__name__)
+
+app.secret_key = os.environ.get("SECRET_KEY", "dev-key")
+
+ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD_HASH = os.environ.get("ADMIN_PASSWORD_HASH")
+
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = "login"
+
+SEC_HEADERS = {
+    "User-Agent": "SergioMomentumBot/1.0 (contact: tu_correo@example.com)",
+    "Accept-Encoding": "gzip, deflate",
+}
+
+FINVIZ_HEADERS = {
+    "User-Agent": "Mozilla/5.0"
+}
+
+REQUEST_TIMEOUT = 20
+STORAGE_FILE = "storage.json"
+
+# LOGIN SIMPLE
+
+class User(UserMixin):
+    def __init__(self, user_id):
+        self.id = user_id
+
+
+@login_manager.user_loader
+def load_user(user_id):
+    if user_id == ADMIN_USERNAME:
+        return User(user_id)
+    return None
+
+
+# =========================
+# STORAGE
+# =========================
+def load_storage():
+    if not os.path.exists(STORAGE_FILE):
+        return {"favorites": [], "notes": {}}
+
+    try:
+        with open(STORAGE_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            if "favorites" not in data:
+                data["favorites"] = []
+            if "notes" not in data:
+                data["notes"] = {}
+            return data
+    except Exception:
+        return {"favorites": [], "notes": {}}
+
+
+def save_storage(data):
+    with open(STORAGE_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def toggle_favorite(ticker):
+    storage = load_storage()
+    favorites = [x.upper() for x in storage["favorites"]]
+    ticker = ticker.upper()
+
+    if ticker in favorites:
+        favorites.remove(ticker)
+    else:
+        favorites.insert(0, ticker)
+
+    storage["favorites"] = favorites[:30]
+    save_storage(storage)
+
+
+def is_favorite(ticker):
+    storage = load_storage()
+    return ticker.upper() in [x.upper() for x in storage["favorites"]]
+
+
+def get_note(ticker):
+    storage = load_storage()
+    return storage.get("notes", {}).get(ticker.upper(), "")
+
+
+def save_note(ticker, note):
+    storage = load_storage()
+    notes = storage.get("notes", {})
+    ticker = ticker.upper().strip()
+
+    if note.strip():
+        notes[ticker] = note.strip()
+    else:
+        notes.pop(ticker, None)
+
+    storage["notes"] = notes
+    save_storage(storage)
+
+
+# =========================
+# HELPERS
+# =========================
+def format_market_cap(value):
+    if value in [None, "N/A"]:
+        return "N/A"
+    try:
+        value = float(value)
+        if value >= 1_000_000_000:
+            return f"{value / 1_000_000_000:.2f}B"
+        if value >= 1_000_000:
+            return f"{value / 1_000_000:.2f}M"
+        if value >= 1_000:
+            return f"{value / 1_000:.2f}K"
+        return f"{value:,.0f}"
+    except Exception:
+        return str(value)
+
+
+def format_number(value):
+    if value in [None, "N/A"]:
+        return "N/A"
+    try:
+        value = float(value)
+        if value >= 1_000_000_000:
+            return f"{value / 1_000_000_000:.2f}B"
+        if value >= 1_000_000:
+            return f"{value / 1_000_000:.2f}M"
+        if value >= 1_000:
+            return f"{value / 1_000:.2f}K"
+        return f"{value:,.0f}"
+    except Exception:
+        return str(value)
+
+
+def format_percent(value):
+    if value in [None, "N/A"]:
+        return "N/A"
+    try:
+        return f"{float(value) * 100:.2f}%"
+    except Exception:
+        return str(value)
+
+
+def format_price(value):
+    if value in [None, "", "N/A"]:
+        return "N/A"
+    try:
+        return f"${float(value):.4f}"
+    except Exception:
+        return str(value)
+
+
+def safe_scalar(value):
+    try:
+        if hasattr(value, "iloc"):
+            return value.iloc[0]
+        return value
+    except Exception:
+        return value
+
+
+def risk_badge_class(risk_level: str):
+    risk_level = (risk_level or "").upper()
+    if risk_level == "HIGH":
+        return "risk-high"
+    if risk_level == "MEDIUM":
+        return "risk-medium"
+    return "risk-low"
+
+
+def build_trader_conclusion(dilution_result, sec_status, news, price_detection):
+    risk = dilution_result.get("risk_level", "LOW")
+    flags = dilution_result.get("flags", [])
+
+    has_offering_news = any(item.get("possible_offering") for item in news)
+    has_today_news = any(item.get("is_today") for item in news)
+    has_fresh_news = any(item.get("is_fresh") for item in news)
+
+    has_atm = sec_status.get("has_atm", False)
+    has_warrants = sec_status.get("has_warrants", False)
+    has_resale = sec_status.get("has_resale", False)
+    has_convertible = sec_status.get("has_convertible", False)
+    has_equity_line = sec_status.get("has_equity_line", False)
+    has_shelf = sec_status.get("has_shelf", False)
+    has_prospectus = sec_status.get("has_prospectus", False)
+
+    parts = []
+
+    if risk == "HIGH":
+        parts.append("High dilution risk.")
+    elif risk == "MEDIUM":
+        parts.append("Medium dilution risk.")
+    else:
+        parts.append("Lower dilution risk based on current signals.")
+
+    structure = []
+    if has_atm:
+        structure.append("ATM")
+    if has_warrants:
+        structure.append("warrants")
+    if has_resale:
+        structure.append("resale")
+    if has_convertible:
+        structure.append("convertibles")
+    if has_equity_line:
+        structure.append("equity line")
+    if has_shelf:
+        structure.append("shelf")
+    if has_prospectus:
+        structure.append("prospectus")
+
+    if structure:
+        parts.append("SEC structure suggests paper overhead via " + ", ".join(structure) + ".")
+
+    if has_offering_news:
+        parts.append("Recent news also contains possible offering language.")
+
+    if has_fresh_news:
+        parts.append("Fresh news detected.")
+    elif has_today_news:
+        parts.append("News today detected.")
+
+    price_bits = []
+    if price_detection.get("offering_price"):
+        price_bits.append(f"offering {format_price(price_detection['offering_price'])}")
+    if price_detection.get("warrant_exercise_price"):
+        price_bits.append(f"warrants {format_price(price_detection['warrant_exercise_price'])}")
+    if price_detection.get("conversion_price"):
+        price_bits.append(f"conversion {format_price(price_detection['conversion_price'])}")
+
+    if price_bits:
+        parts.append("Detected price references: " + ", ".join(price_bits) + ".")
+
+    if not flags:
+        parts.append("No major paper-risk flags were detected from the current scan.")
+
+    return " ".join(parts)
+
+
+def build_quick_flags(news, sec_status, dilution_result, price_detection):
+    flags = []
+
+    if dilution_result.get("risk_level") == "HIGH":
+        flags.append(("HIGH RISK", "pill-red"))
+    elif dilution_result.get("risk_level") == "MEDIUM":
+        flags.append(("MEDIUM RISK", "pill-yellow"))
+    else:
+        flags.append(("LOW RISK", "pill-green"))
+
+    if any(item.get("is_fresh") for item in news):
+        flags.append(("FRESH NEWS", "pill-blue"))
+
+    if any(item.get("is_today") for item in news):
+        flags.append(("NEWS TODAY", "pill-blue"))
+
+    if any(item.get("possible_offering") for item in news):
+        flags.append(("OFFERING NEWS?", "pill-red"))
+
+    if sec_status.get("has_atm"):
+        flags.append(("ATM", "pill-red"))
+
+    if sec_status.get("has_warrants"):
+        flags.append(("WARRANTS", "pill-yellow"))
+
+    if sec_status.get("has_resale"):
+        flags.append(("RESALE", "pill-yellow"))
+
+    if sec_status.get("has_convertible"):
+        flags.append(("CONVERTIBLE", "pill-red"))
+
+    if sec_status.get("has_equity_line"):
+        flags.append(("EQUITY LINE", "pill-red"))
+
+    if sec_status.get("has_shelf"):
+        flags.append(("SHELF", "pill-yellow"))
+
+    if sec_status.get("has_prospectus"):
+        flags.append(("PROSPECTUS", "pill-yellow"))
+
+    if price_detection.get("offering_price"):
+        flags.append((f"OFFER ${float(price_detection['offering_price']):.2f}", "pill-red"))
+
+    if price_detection.get("warrant_exercise_price"):
+        flags.append((f"WARRANT ${float(price_detection['warrant_exercise_price']):.2f}", "pill-yellow"))
+
+    if price_detection.get("conversion_price"):
+        flags.append((f"CONV ${float(price_detection['conversion_price']):.2f}", "pill-red"))
+
+    return flags
+
+
+# =========================
+# DATOS DE LA ACCIÓN
+# =========================
+def get_stock_data(ticker: str):
+    try:
+        ticker = ticker.upper().strip()
+
+        hist = yf.download(
+            ticker,
+            period="5d",
+            interval="1d",
+            progress=False,
+            auto_adjust=False,
+            threads=False,
+        )
+
+        if hist is None or hist.empty:
+            return {"error": "No pude obtener histórico de Yahoo Finance."}
+
+        last_close = safe_scalar(hist["Close"].iloc[-1])
+        prev_close = safe_scalar(hist["Close"].iloc[-2]) if len(hist) >= 2 else "N/A"
+        volume = safe_scalar(hist["Volume"].iloc[-1])
+        open_price = safe_scalar(hist["Open"].iloc[-1])
+        high = safe_scalar(hist["High"].iloc[-1])
+        low = safe_scalar(hist["Low"].iloc[-1])
+
+        company_name = ticker
+        market_cap = "N/A"
+        sector = "N/A"
+        industry = "N/A"
+        float_shares = "N/A"
+        shares_outstanding = "N/A"
+        institutional_ownership = "N/A"
+        insider_ownership = "N/A"
+        avg_volume = "N/A"
+        rvol = "N/A"
+
+        try:
+            stock = yf.Ticker(ticker)
+            info = stock.get_info()
+
+            company_name = info.get("longName", ticker)
+            market_cap = info.get("marketCap", "N/A")
+            sector = info.get("sector", "N/A")
+            industry = info.get("industry", "N/A")
+            float_shares = info.get("floatShares", "N/A")
+            shares_outstanding = info.get("sharesOutstanding", "N/A")
+            institutional_ownership = info.get("heldPercentInstitutions", "N/A")
+            insider_ownership = info.get("heldPercentInsiders", "N/A")
+            avg_volume = info.get("averageVolume", "N/A")
+
+            try:
+                if avg_volume not in [None, "N/A", 0]:
+                    rvol = round(float(volume) / float(avg_volume), 2)
+            except Exception:
+                rvol = "N/A"
+
+        except Exception:
+            pass
+
+        return {
+            "symbol": ticker,
+            "companyName": company_name,
+            "price": round(float(last_close), 4),
+            "prevClose": round(float(prev_close), 4) if prev_close != "N/A" else "N/A",
+            "open": round(float(open_price), 4),
+            "high": round(float(high), 4),
+            "low": round(float(low), 4),
+            "volume": int(volume),
+            "avgVolume": avg_volume,
+            "rvol": rvol,
+            "marketCap": market_cap,
+            "sector": sector,
+            "industry": industry,
+            "floatShares": float_shares,
+            "sharesOutstanding": shares_outstanding,
+            "institutionalOwnership": institutional_ownership,
+            "insiderOwnership": insider_ownership,
+        }
+
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# =========================
+# FINVIZ NEWS
+# =========================
+def parse_finviz_datetime(raw_text: str):
+    raw_text = raw_text.strip()
+    now = datetime.now()
+
+    try:
+        lower = raw_text.lower()
+
+        if lower.startswith("today"):
+            time_part = raw_text.split()[-1]
+            dt = datetime.strptime(time_part, "%I:%M%p")
+            return now.replace(hour=dt.hour, minute=dt.minute, second=0, microsecond=0)
+
+        if lower.startswith("yesterday"):
+            time_part = raw_text.split()[-1]
+            dt = datetime.strptime(time_part, "%I:%M%p")
+            yesterday = now - timedelta(days=1)
+            return yesterday.replace(hour=dt.hour, minute=dt.minute, second=0, microsecond=0)
+
+        return datetime.strptime(raw_text, "%b-%d-%y %I:%M%p")
+    except Exception:
+        return None
+
+
+def get_stock_news(ticker: str, limit: int = 3):
+    try:
+        url = f"https://finviz.com/quote.ashx?t={ticker}"
+        response = requests.get(url, headers=FINVIZ_HEADERS, timeout=REQUEST_TIMEOUT)
+        response.raise_for_status()
+
+        soup = BeautifulSoup(response.text, "html.parser")
+        news_table = soup.find(id="news-table") or soup.find("table", class_="news-table")
+        if not news_table:
+            return []
+
+        results = []
+        current_date_label = ""
+
+        for row in news_table.find_all("tr"):
+            cols = row.find_all("td")
+            if len(cols) < 2:
+                continue
+
+            date_text = cols[0].get_text(" ", strip=True)
+            link_tag = cols[1].find("a")
+            if not link_tag:
+                continue
+
+            title = link_tag.get_text(" ", strip=True)
+            link = link_tag.get("href", "").strip()
+
+            if link.startswith("/"):
+                link = f"https://finviz.com{link}"
+
+            parts = date_text.split()
+            if len(parts) == 2:
+                current_date_label = parts[0]
+                final_date_text = date_text
+            elif len(parts) == 1:
+                final_date_text = f"{current_date_label} {parts[0]}" if current_date_label else parts[0]
+            else:
+                final_date_text = date_text
+
+            parsed_dt = parse_finviz_datetime(final_date_text)
+
+            is_today = False
+            is_fresh = False
+            pretty_date = final_date_text
+
+            if parsed_dt:
+                now = datetime.now()
+                is_today = parsed_dt.date() == now.date()
+                is_fresh = (now - parsed_dt) <= timedelta(hours=2)
+                pretty_date = parsed_dt.strftime("%d-%m-%Y %H:%M")
+
+            offering_keywords = [
+                "offering", "atm", "warrant", "direct offering",
+                "registered direct", "prospectus", "shelf", "resale",
+                "convertible", "equity line", "purchase agreement",
+                "sales agreement", "prospectus supplement"
+            ]
+
+            title_lower = title.lower()
+            possible_offering = any(word in title_lower for word in offering_keywords)
+
+            results.append({
+                "title": title,
+                "link": link,
+                "publisher": "Finviz",
+                "date": pretty_date,
+                "is_today": is_today,
+                "is_fresh": is_fresh,
+                "possible_offering": possible_offering,
+            })
+
+            if len(results) >= limit:
+                break
+
+        return results
+
+    except Exception:
+        return []
+
+
+# =========================
+# SEC
+# =========================
+def get_cik_from_ticker(ticker: str):
+    try:
+        url = "https://www.sec.gov/files/company_tickers.json"
+        response = requests.get(url, headers=SEC_HEADERS, timeout=REQUEST_TIMEOUT)
+        response.raise_for_status()
+        data = response.json()
+
+        ticker_upper = ticker.upper().strip()
+
+        for _, company in data.items():
+            sec_ticker = str(company.get("ticker", "")).upper()
+            if sec_ticker == ticker_upper:
+                cik_str = str(company.get("cik_str", "")).zfill(10)
+                title = company.get("title", "")
+                return {"cik": cik_str, "title": title}
+
+        return None
+    except Exception:
+        return None
+
+
+def get_recent_sec_filings(ticker: str, limit: int = 20):
+    cik_data = get_cik_from_ticker(ticker)
+    if not cik_data:
+        return None
+
+    cik = cik_data["cik"]
+
+    try:
+        url = f"https://data.sec.gov/submissions/CIK{cik}.json"
+        response = requests.get(url, headers=SEC_HEADERS, timeout=REQUEST_TIMEOUT)
+        response.raise_for_status()
+        data = response.json()
+
+        recent = data.get("filings", {}).get("recent", {})
+        forms = recent.get("form", [])
+        dates = recent.get("filingDate", [])
+        accession_numbers = recent.get("accessionNumber", [])
+        primary_documents = recent.get("primaryDocument", [])
+        primary_doc_desc = recent.get("primaryDocDescription", [])
+
+        results = []
+        max_len = min(
+            len(forms),
+            len(dates),
+            len(accession_numbers),
+            len(primary_documents),
+            limit
+        )
+
+        for i in range(max_len):
+            accession = accession_numbers[i]
+            accession_clean = accession.replace("-", "")
+
+            filing_link = (
+                f"https://www.sec.gov/Archives/edgar/data/"
+                f"{int(cik)}/{accession_clean}/{primary_documents[i]}"
+            )
+
+            index_link = (
+                f"https://www.sec.gov/Archives/edgar/data/"
+                f"{int(cik)}/{accession_clean}/{accession}-index.htm"
+            )
+
+            results.append({
+                "form": forms[i],
+                "date": dates[i],
+                "accession": accession,
+                "primaryDocument": primary_documents[i],
+                "description": primary_doc_desc[i] if i < len(primary_doc_desc) else "",
+                "link": filing_link,
+                "index_link": index_link,
+            })
+
+        return results
+
+    except Exception:
+        return []
+
+
+def fetch_filing_text(url: str):
+    try:
+        response = requests.get(url, headers=SEC_HEADERS, timeout=REQUEST_TIMEOUT)
+        response.raise_for_status()
+
+        text = response.text
+        soup = BeautifulSoup(text, "html.parser")
+        cleaned_text = soup.get_text(" ", strip=True)
+        cleaned_text = re.sub(r"\s+", " ", cleaned_text)
+        return cleaned_text.lower()
+
+    except Exception:
+        return ""
+
+
+def extract_price_near_keywords(text: str, keywords, window=240, max_matches=8):
+    if not text:
+        return []
+
+    text_lower = text.lower()
+    prices = []
+
+    price_pattern = re.compile(
+        r"""
+        \$\s?(\d+(?:\.\d{1,4})?)
+        |
+        (\d+(?:\.\d{1,4})?)\s?(?:per\s+share|a\s+share|exercise\s+price|conversion\s+price)
+        """,
+        re.IGNORECASE | re.VERBOSE,
+    )
+
+    for keyword in keywords:
+        for match in re.finditer(re.escape(keyword.lower()), text_lower):
+            start = max(0, match.start() - window)
+            end = min(len(text_lower), match.end() + window)
+            chunk = text[start:end]
+
+            for price_match in price_pattern.finditer(chunk):
+                raw_price = price_match.group(1) or price_match.group(2)
+                if not raw_price:
+                    continue
+                try:
+                    val = float(raw_price)
+                    if 0 < val < 100000:
+                        prices.append(val)
+                except Exception:
+                    pass
+
+            if len(prices) >= max_matches:
+                return prices
+
+    return prices
+
+
+def pick_best_price(prices):
+    if not prices:
+        return None
+    try:
+        prices = sorted(prices)
+        return prices[0]
+    except Exception:
+        return prices[0]
+
+
+def analyze_sec_offering_status(filings, max_docs_to_scan: int = 6):
+    status = {
+        "has_relevant_filings": False,
+        "has_shelf": False,
+        "has_prospectus": False,
+        "has_effect": False,
+        "has_atm": False,
+        "has_warrants": False,
+        "has_resale": False,
+        "has_sales_agreement": False,
+        "has_convertible": False,
+        "has_equity_line": False,
+        "risk_flags": [],
+        "relevant_filings": [],
+        "text_hits": [],
+        "scanned_texts": []
+    }
+
+    if not filings:
+        return status
+
+    relevant_forms = {
+        "S-1", "S-1/A", "S-3", "S-3/A", "S-3ASR", "S-3MEF",
+        "F-1", "F-1/A", "F-3", "F-3/A", "F-3ASR",
+        "424B1", "424B2", "424B3", "424B4", "424B5", "424B7", "424B8",
+        "POS AM", "EFFECT", "RW", "8-K", "6-K"
+    }
+
+    shelf_forms = {
+        "S-1", "S-1/A", "S-3", "S-3/A", "S-3ASR", "S-3MEF",
+        "F-1", "F-1/A", "F-3", "F-3/A", "F-3ASR"
+    }
+
+    prospectus_forms = {"424B1", "424B2", "424B3", "424B4", "424B5", "424B7", "424B8"}
+
+    for filing in filings:
+        form = filing.get("form", "")
+        if form in relevant_forms:
+            status["has_relevant_filings"] = True
+            status["relevant_filings"].append(filing)
+
+        if form in shelf_forms:
+            status["has_shelf"] = True
+
+        if form in prospectus_forms:
+            status["has_prospectus"] = True
+
+        if form == "EFFECT":
+            status["has_effect"] = True
+
+    keyword_map = {
+        "ATM": [
+            "at the market offering",
+            "at-the-market offering",
+            "at the market",
+            "at-the-market",
+            "atm program"
+        ],
+        "WARRANTS": ["warrant", "warrants"],
+        "RESALE": ["resale", "resale prospectus"],
+        "SALES AGREEMENT": [
+            "sales agreement",
+            "equity distribution agreement",
+            "distribution agreement"
+        ],
+        "CONVERTIBLE": [
+            "convertible note",
+            "convertible notes",
+            "convertible debenture",
+            "convertible preferred",
+            "conversion price"
+        ],
+        "EQUITY LINE": [
+            "equity line",
+            "common stock purchase agreement",
+            "committed equity facility"
+        ],
+        "PURCHASE AGREEMENT": [
+            "purchase agreement",
+            "securities purchase agreement"
+        ],
+    }
+
+    scanned = 0
+    for filing in status["relevant_filings"]:
+        if scanned >= max_docs_to_scan:
+            break
+
+        filing_text = fetch_filing_text(filing["link"])
+        if not filing_text:
+            filing_text = fetch_filing_text(filing["index_link"])
+
+        if not filing_text:
+            continue
+
+        scanned += 1
+        local_hits = []
+
+        for label, patterns in keyword_map.items():
+            for pattern in patterns:
+                if pattern in filing_text:
+                    local_hits.append(label)
+                    break
+
+        if "ATM" in local_hits:
+            status["has_atm"] = True
+        if "WARRANTS" in local_hits:
+            status["has_warrants"] = True
+        if "RESALE" in local_hits:
+            status["has_resale"] = True
+        if "SALES AGREEMENT" in local_hits:
+            status["has_sales_agreement"] = True
+        if "CONVERTIBLE" in local_hits:
+            status["has_convertible"] = True
+        if "EQUITY LINE" in local_hits:
+            status["has_equity_line"] = True
+        if "PURCHASE AGREEMENT" in local_hits:
+            status["has_equity_line"] = True
+
+        if local_hits:
+            status["text_hits"].append({
+                "form": filing["form"],
+                "date": filing["date"],
+                "link": filing["link"],
+                "index_link": filing["index_link"],
+                "hits": local_hits
+            })
+
+        status["scanned_texts"].append({
+            "form": filing["form"],
+            "date": filing["date"],
+            "link": filing["link"],
+            "index_link": filing["index_link"],
+            "text": filing_text
+        })
+
+    if status["has_atm"]:
+        status["risk_flags"].append("ATM language found")
+    if status["has_sales_agreement"]:
+        status["risk_flags"].append("Sales agreement found")
+    if status["has_shelf"]:
+        status["risk_flags"].append("Shelf / registration filing found")
+    if status["has_prospectus"]:
+        status["risk_flags"].append("Prospectus / supplement filing found")
+    if status["has_effect"]:
+        status["risk_flags"].append("Effective registration found")
+    if status["has_warrants"]:
+        status["risk_flags"].append("Warrants language found")
+    if status["has_resale"]:
+        status["risk_flags"].append("Resale language found")
+    if status["has_convertible"]:
+        status["risk_flags"].append("Convertible language found")
+    if status["has_equity_line"]:
+        status["risk_flags"].append("Equity line / purchase agreement found")
+
+    return status
+
+
+def detect_price_levels_from_sec(sec_status):
+    result = {
+        "offering_price": None,
+        "warrant_exercise_price": None,
+        "conversion_price": None,
+        "sources": []
+    }
+
+    if not sec_status:
+        return result
+
+    offering_keywords = [
+        "offering price",
+        "public offering price",
+        "price to the public",
+        "purchase price",
+        "registered direct offering",
+        "offering"
+    ]
+
+    warrant_keywords = [
+        "exercise price",
+        "warrants",
+        "pre-funded warrants",
+        "common warrants"
+    ]
+
+    conversion_keywords = [
+        "conversion price",
+        "convertible note",
+        "convertible notes",
+        "convertible preferred",
+        "conversion"
+    ]
+
+    for doc in sec_status.get("scanned_texts", []):
+        text = doc.get("text", "")
+
+        offering_prices = extract_price_near_keywords(text, offering_keywords)
+        warrant_prices = extract_price_near_keywords(text, warrant_keywords)
+        conversion_prices = extract_price_near_keywords(text, conversion_keywords)
+
+        local_source = {
+            "form": doc.get("form", ""),
+            "date": doc.get("date", ""),
+            "link": doc.get("link", ""),
+            "index_link": doc.get("index_link", ""),
+            "offering_prices": offering_prices[:5],
+            "warrant_prices": warrant_prices[:5],
+            "conversion_prices": conversion_prices[:5],
+        }
+
+        if offering_prices or warrant_prices or conversion_prices:
+            result["sources"].append(local_source)
+
+        if result["offering_price"] is None and offering_prices:
+            result["offering_price"] = pick_best_price(offering_prices)
+
+        if result["warrant_exercise_price"] is None and warrant_prices:
+            result["warrant_exercise_price"] = pick_best_price(warrant_prices)
+
+        if result["conversion_price"] is None and conversion_prices:
+            result["conversion_price"] = pick_best_price(conversion_prices)
+
+    return result
+
+
+def detect_dilution(data, news, filings, sec_status, price_detection):
+    flags = []
+    score = 0
+
+    float_shares = data.get("floatShares")
+    institutional = data.get("institutionalOwnership")
+    shares_outstanding = data.get("sharesOutstanding")
+
+    try:
+        if float_shares not in [None, "N/A"] and float_shares > 50_000_000:
+            flags.append("High float")
+            score += 1
+    except Exception:
+        pass
+
+    try:
+        if shares_outstanding not in [None, "N/A"] and shares_outstanding > 100_000_000:
+            flags.append("High shares outstanding")
+            score += 1
+    except Exception:
+        pass
+
+    try:
+        if institutional not in [None, "N/A"] and float(institutional) < 0.10:
+            flags.append("Low institutional ownership")
+            score += 1
+    except Exception:
+        pass
+
+    for item in news:
+        if item.get("possible_offering"):
+            flags.append("Possible offering news")
+            score += 2
+
+    if sec_status:
+        for risk in sec_status.get("risk_flags", []):
+            flags.append(risk)
+            score += 2
+
+    if price_detection.get("offering_price"):
+        flags.append(f"Offering price detected: {format_price(price_detection['offering_price'])}")
+        score += 2
+
+    if price_detection.get("warrant_exercise_price"):
+        flags.append(f"Warrant exercise price detected: {format_price(price_detection['warrant_exercise_price'])}")
+        score += 1
+
+    if price_detection.get("conversion_price"):
+        flags.append(f"Conversion price detected: {format_price(price_detection['conversion_price'])}")
+        score += 2
+
+    suspicious_forms = {
+        "S-1", "S-1/A", "S-3", "S-3/A", "S-3ASR", "S-3MEF",
+        "424B1", "424B2", "424B3", "424B4", "424B5", "424B7", "424B8",
+        "POS AM", "EFFECT", "RW", "F-1", "F-1/A", "F-3", "F-3/A", "F-3ASR", "6-K", "8-K"
+    }
+
+    if filings:
+        for filing in filings[:10]:
+            form = filing.get("form", "")
+            if form in suspicious_forms:
+                flags.append(f"SEC filing: {form}")
+                score += 1
+
+    unique_flags = []
+    seen = set()
+    for flag in flags:
+        if flag not in seen:
+            unique_flags.append(flag)
+            seen.add(flag)
+
+    if score >= 8:
+        risk_level = "HIGH"
+    elif score >= 4:
+        risk_level = "MEDIUM"
+    else:
+        risk_level = "LOW"
+
+    return {
+        "flags": unique_flags,
+        "score": score,
+        "risk_level": risk_level
+    }
+
+
+# =========================
+# HTML HELPERS
+# =========================
+def render_sidebar(current_ticker=""):
+    storage = load_storage()
+    favorites = storage["favorites"]
+    notes = storage.get("notes", {})
+
+    fav_html = ""
+    if favorites:
+        for t in favorites:
+            active = " active-ticker" if t.upper() == current_ticker.upper() else ""
+            note = notes.get(t.upper(), "")
+            note_html = f'<div class="fav-note">{escape(note)}</div>' if note else ""
+            fav_html += f'''
+            <a class="side-link{active}" href="/?ticker={escape(t)}">
+                <div class="fav-ticker">⭐ {escape(t)}</div>
+                {note_html}
+            </a>
+            '''
+    else:
+        fav_html = '<div class="empty-mini">No favorites yet.</div>'
+
+    return fav_html
+
+
+def render_note_box(ticker):
+    note = get_note(ticker)
+    return f"""
+    <div class="section-card">
+        <div class="section-title">Notes / Watchlist Tag</div>
+        <form method="POST" action="/save_note">
+            <input type="hidden" name="ticker" value="{escape(ticker)}">
+            <textarea name="note" class="note-textarea" placeholder="Ej: Chinese / dangerous, dilution watch, clean, short bias...">{escape(note)}</textarea>
+            <button type="submit" class="secondary-btn">Guardar nota</button>
+        </form>
+    </div>
+    """
+
+
+def render_news(news):
+    if not news:
+        return '<div class="empty-box">No encontré noticias en Finviz.</div>'
+
+    html = ""
+    for item in news:
+        labels = []
+
+        if item.get("is_today"):
+            labels.append('<span class="mini-tag mini-blue">TODAY</span>')
+        if item.get("is_fresh"):
+            labels.append('<span class="mini-tag mini-blue">FRESH</span>')
+        if item.get("possible_offering"):
+            labels.append('<span class="mini-tag mini-red">OFFERING?</span>')
+
+        labels_html = " ".join(labels)
+
+        html += f"""
+        <div class="list-card">
+            <div class="list-card-title">
+                <a href="{item['link']}" target="_blank">{escape(item['title'])}</a>
+            </div>
+            <div class="list-card-meta">
+                <span>{escape(item['date'])}</span>
+                <span>{labels_html}</span>
+            </div>
+        </div>
+        """
+    return html
+
+
+def render_filings(filings):
+    if filings is None:
+        return '<div class="empty-box">Este ticker no parece tener mapeo SEC.</div>'
+
+    if not filings:
+        return '<div class="empty-box">No encontré filings recientes.</div>'
+
+    html = ""
+    for filing in filings[:6]:
+        desc = filing.get("description", "") or filing.get("primaryDocument", "")
+        html += f"""
+        <div class="list-card">
+            <div class="filing-top">
+                <span class="form-pill">{filing['form']}</span>
+                <span class="filing-date">{filing['date']}</span>
+            </div>
+            <div class="filing-desc">{escape(desc)}</div>
+            <div class="filing-links">
+                <a href="{filing['link']}" target="_blank">Open filing</a>
+                <a href="{filing['index_link']}" target="_blank">SEC index</a>
+            </div>
+        </div>
+        """
+    return html
+
+
+def render_sec_status(sec_status):
+    if not sec_status or not sec_status.get("has_relevant_filings"):
+        return '<div class="empty-box">No relevant offering-related filings found.</div>'
+
+    checks = [
+        ("ATM", sec_status["has_atm"]),
+        ("Shelf / Registration", sec_status["has_shelf"]),
+        ("Prospectus / Supplement", sec_status["has_prospectus"]),
+        ("EFFECT", sec_status["has_effect"]),
+        ("Sales Agreement", sec_status["has_sales_agreement"]),
+        ("Warrants", sec_status["has_warrants"]),
+        ("Resale", sec_status["has_resale"]),
+        ("Convertible", sec_status["has_convertible"]),
+        ("Equity Line", sec_status["has_equity_line"]),
+    ]
+
+    checks_html = ""
+    for label, value in checks:
+        dot_class = "dot-yes" if value else "dot-no"
+        value_text = "YES" if value else "NO"
+        checks_html += f"""
+        <div class="status-row">
+            <span>{escape(label)}</span>
+            <span class="status-value"><span class="dot {dot_class}"></span>{value_text}</span>
+        </div>
+        """
+
+    flags_html = ""
+    if sec_status.get("risk_flags"):
+        flags_html += '<div class="card-block"><div class="subsection-title">SEC Risk Flags</div><ul class="nice-list">'
+        for flag in sec_status["risk_flags"]:
+            flags_html += f"<li>{escape(flag)}</li>"
+        flags_html += "</ul></div>"
+
+    hits_html = ""
+    if sec_status.get("text_hits"):
+        hits_html += '<div class="card-block"><div class="subsection-title">Text hits found in filings</div>'
+        for item in sec_status["text_hits"][:3]:
+            hits_text = ", ".join(item["hits"])
+            hits_html += f"""
+            <div class="list-card">
+                <div><b>{item['form']}</b> | {item['date']}</div>
+                <div>{escape(hits_text)}</div>
+                <div class="filing-links">
+                    <a href="{item['link']}" target="_blank">Direct filing</a>
+                    <a href="{item['index_link']}" target="_blank">SEC index</a>
+                </div>
+            </div>
+            """
+        hits_html += "</div>"
+
+    return f"""
+    <div class="card-block">
+        <div class="subsection-title">SEC Offering Status</div>
+        <div class="status-grid">
+            {checks_html}
+        </div>
+    </div>
+    {flags_html}
+    {hits_html}
+    """
+
+
+def render_price_detection(price_detection):
+    has_any = any([
+        price_detection.get("offering_price"),
+        price_detection.get("warrant_exercise_price"),
+        price_detection.get("conversion_price"),
+    ])
+
+    if not has_any:
+        return '<div class="empty-box">No pude detectar precios claros de offering, warrants o conversion en los filings escaneados.</div>'
+
+    rows = []
+
+    rows.append(f"""
+    <div class="status-row">
+        <span>Offering Price</span>
+        <span class="status-value">{format_price(price_detection.get("offering_price"))}</span>
+    </div>
+    """)
+
+    rows.append(f"""
+    <div class="status-row">
+        <span>Warrant Exercise Price</span>
+        <span class="status-value">{format_price(price_detection.get("warrant_exercise_price"))}</span>
+    </div>
+    """)
+
+    rows.append(f"""
+    <div class="status-row">
+        <span>Conversion Price</span>
+        <span class="status-value">{format_price(price_detection.get("conversion_price"))}</span>
+    </div>
+    """)
+
+    sources_html = ""
+    if price_detection.get("sources"):
+        sources_html += '<div class="card-block"><div class="subsection-title">Detected from filings</div>'
+        for src in price_detection["sources"][:4]:
+            parts = []
+            if src.get("offering_prices"):
+                parts.append("Offering: " + ", ".join(format_price(x) for x in src["offering_prices"][:3]))
+            if src.get("warrant_prices"):
+                parts.append("Warrants: " + ", ".join(format_price(x) for x in src["warrant_prices"][:3]))
+            if src.get("conversion_prices"):
+                parts.append("Conversion: " + ", ".join(format_price(x) for x in src["conversion_prices"][:3]))
+
+            sources_html += f"""
+            <div class="list-card">
+                <div><b>{escape(src.get('form', ''))}</b> | {escape(src.get('date', ''))}</div>
+                <div class="filing-desc">{escape(" | ".join(parts))}</div>
+                <div class="filing-links">
+                    <a href="{src.get('link', '#')}" target="_blank">Direct filing</a>
+                    <a href="{src.get('index_link', '#')}" target="_blank">SEC index</a>
+                </div>
+            </div>
+            """
+        sources_html += "</div>"
+
+    return f"""
+    <div class="card-block">
+        <div class="subsection-title">Price Detection</div>
+        <div class="status-grid">
+            {''.join(rows)}
+        </div>
+    </div>
+    {sources_html}
+    """
+
+
+def render_summary(data, dilution_result, news, sec_status, price_detection):
+    risk_level = dilution_result["risk_level"]
+    badge_class = risk_badge_class(risk_level)
+    quick_flags = build_quick_flags(news, sec_status, dilution_result, price_detection)
+    conclusion = build_trader_conclusion(dilution_result, sec_status, news, price_detection)
+    ticker = data["symbol"]
+    favorite_text = "★ Remove favorite" if is_favorite(ticker) else "☆ Add favorite"
+    note = get_note(ticker)
+
+    flags_html = ""
+    for text, cls in quick_flags:
+        flags_html += f'<span class="big-pill {cls}">{escape(text)}</span>'
+
+    score_flags_html = ""
+    if dilution_result["flags"]:
+        score_flags_html = "<ul class='nice-list'>" + "".join(
+            f"<li>{escape(flag)}</li>" for flag in dilution_result["flags"][:12]
+        ) + "</ul>"
+
+    note_banner = ""
+    if note:
+        note_banner = f"""
+        <div class="watchlist-note">
+            <div class="subsection-title">Saved note</div>
+            <div>{escape(note)}</div>
+        </div>
+        """
+
+    return f"""
+    <div class="hero-card">
+        <div class="hero-top">
+            <div>
+                <div class="ticker-line">{escape(str(data['symbol']))}</div>
+                <div class="company-line">{escape(str(data['companyName']))}</div>
+            </div>
+            <div class="hero-actions">
+                <a class="favorite-btn" href="/toggle_favorite/{escape(ticker)}">{favorite_text}</a>
+                <div class="risk-badge {badge_class}">
+                    <div class="risk-label">Dilution Risk</div>
+                    <div class="risk-level">{risk_level}</div>
+                    <div class="risk-score">Score: {dilution_result['score']}</div>
+                </div>
+            </div>
+        </div>
+
+        {note_banner}
+
+        <div class="pill-row">
+            {flags_html}
+        </div>
+
+        <div class="conclusion-box">
+            <div class="subsection-title">Quick trader read</div>
+            <div>{escape(conclusion)}</div>
+        </div>
+    </div>
+
+    <div class="metrics-grid">
+        <div class="metric-card"><div class="metric-title">Price</div><div class="metric-value">{data['price']}</div></div>
+        <div class="metric-card"><div class="metric-title">Prev Close</div><div class="metric-value">{data['prevClose']}</div></div>
+        <div class="metric-card"><div class="metric-title">Open</div><div class="metric-value">{data['open']}</div></div>
+        <div class="metric-card"><div class="metric-title">High</div><div class="metric-value">{data['high']}</div></div>
+        <div class="metric-card"><div class="metric-title">Low</div><div class="metric-value">{data['low']}</div></div>
+        <div class="metric-card"><div class="metric-title">Volume</div><div class="metric-value">{format_number(data['volume'])}</div></div>
+        <div class="metric-card"><div class="metric-title">Avg Volume</div><div class="metric-value">{format_number(data['avgVolume'])}</div></div>
+        <div class="metric-card"><div class="metric-title">RVOL</div><div class="metric-value">{data['rvol']}</div></div>
+        <div class="metric-card"><div class="metric-title">Market Cap</div><div class="metric-value">{format_market_cap(data['marketCap'])}</div></div>
+        <div class="metric-card"><div class="metric-title">Float</div><div class="metric-value">{format_number(data['floatShares'])}</div></div>
+        <div class="metric-card"><div class="metric-title">Shares O/S</div><div class="metric-value">{format_number(data['sharesOutstanding'])}</div></div>
+        <div class="metric-card"><div class="metric-title">Institutional</div><div class="metric-value">{format_percent(data['institutionalOwnership'])}</div></div>
+        <div class="metric-card"><div class="metric-title">Insiders</div><div class="metric-value">{format_percent(data['insiderOwnership'])}</div></div>
+        <div class="metric-card"><div class="metric-title">Sector</div><div class="metric-value small-text">{escape(str(data['sector']))}</div></div>
+        <div class="metric-card"><div class="metric-title">Industry</div><div class="metric-value small-text">{escape(str(data['industry']))}</div></div>
+    </div>
+
+    <div class="card-block">
+        <div class="subsection-title">Score flags</div>
+        {score_flags_html if score_flags_html else '<div class="empty-box">No major paper-risk flags detected.</div>'}
+    </div>
+    """
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if current_user.is_authenticated:
+        return redirect(url_for("home"))
+
+    error = None
+
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "").strip()
+
+        if username == ADMIN_USERNAME and check_password_hash(ADMIN_PASSWORD_HASH, password):
+            user = User(ADMIN_USERNAME)
+            login_user(user)
+            return redirect(url_for("home"))
+        else:
+            error = "Usuario o contraseña incorrectos"
+
+    return render_template("login.html", error=error)
+
+
+@app.route("/logout")
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for("login"))
+
+
+@app.route("/toggle_favorite/<ticker>")
+@login_required
+def toggle_favorite_route(ticker):
+    toggle_favorite(ticker.upper())
+    return redirect(url_for("home", ticker=ticker.upper()))
+
+
+@app.route("/save_note", methods=["POST"])
+@login_required
+def save_note_route():
+    ticker = request.form.get("ticker", "").strip().upper()
+    note = request.form.get("note", "")
+    if ticker:
+        save_note(ticker, note)
+    return redirect(url_for("home", ticker=ticker))
+
+
+@app.route("/", methods=["GET", "POST"])
+@login_required
+def home():
+    ticker = request.args.get("ticker", "").strip().upper()
+    content = ""
+
+    if request.method == "POST":
+        ticker = request.form.get("ticker", "").strip().upper()
+
+    if ticker:
+        data = get_stock_data(ticker)
+
+        if "error" in data:
+            content = f'<div class="error-box"><b>Error:</b> {escape(data["error"])}</div>'
+        else:
+            news = get_stock_news(ticker, limit=3)
+            filings = get_recent_sec_filings(ticker, limit=20)
+            sec_status = analyze_sec_offering_status(filings, max_docs_to_scan=6)
+            price_detection = detect_price_levels_from_sec(sec_status)
+            dilution_result = detect_dilution(data, news, filings or [], sec_status, price_detection)
+
+            summary_html = render_summary(data, dilution_result, news, sec_status, price_detection)
+            note_box_html = render_note_box(ticker)
+            news_html = render_news(news)
+            filings_html = render_filings(filings)
+            sec_status_html = render_sec_status(sec_status)
+            price_detection_html = render_price_detection(price_detection)
+
+            content = f"""
+            {summary_html}
+
+            {note_box_html}
+
+            <div class="two-col">
+                <div class="section-card">
+                    <div class="section-title">Latest News</div>
+                    {news_html}
+                </div>
+                <div class="section-card">
+                    <div class="section-title">SEC Status</div>
+                    {sec_status_html}
+                </div>
+            </div>
+
+            <div class="section-card">
+                <div class="section-title">Offering / Warrant / Conversion Prices</div>
+                {price_detection_html}
+            </div>
+
+            <div class="section-card">
+                <div class="section-title">Recent SEC Filings</div>
+                {filings_html}
+            </div>
+            """
+
+    sidebar_html = render_sidebar(ticker)
+
+    return render_template(
+        "index.html",
+        ticker=ticker,
+        content=content,
+        sidebar_html=sidebar_html
+    )
+
+
+if __name__ == "__main__":
+    app.run(debug=True)
