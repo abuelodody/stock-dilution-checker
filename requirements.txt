@@ -1,0 +1,7 @@
+Flask
+Flask-Login
+gunicorn
+yfinance
+requests
+beautifulsoup4
+lxml
