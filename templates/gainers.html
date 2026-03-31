@@ -2,350 +2,407 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Top Gainers</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gainers</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <style>
-        .section-header-line {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 16px;
-            margin-top: 10px;
-            margin-bottom: 12px;
+        :root{
+            --bg:#0b1020;
+            --card:#121936;
+            --card-2:#0f1630;
+            --border:#232c57;
+            --text:#e8ecff;
+            --muted:#9aa4d1;
+            --green:#23d18b;
+            --red:#ff5c7a;
+            --yellow:#f7c948;
+            --blue:#7aa2ff;
         }
 
-        .mini-refresh {
-            background: #2563eb;
-            color: white;
-            border: none;
-            border-radius: 10px;
-            padding: 8px 12px;
-            cursor: pointer;
-            font-weight: 700;
+        .combo-wrap{
+            display:flex;
+            flex-direction:column;
+            gap:18px;
         }
 
-        .mini-refresh:hover {
-            opacity: 0.92;
+        .top-panels{
+            display:grid;
+            grid-template-columns:1fr 1fr;
+            gap:16px;
         }
 
-        .gainers-loading,
-        .gainers-error,
-        .gainers-empty {
-            margin-top: 20px;
-            padding: 18px;
-            border-radius: 14px;
-            background: rgba(15, 23, 42, 0.75);
-            border: 1px solid rgba(148, 163, 184, 0.18);
-            color: #e2e8f0;
+        .panel{
+            background:linear-gradient(180deg, var(--card), var(--card-2));
+            border:1px solid var(--border);
+            border-radius:18px;
+            overflow:hidden;
+            box-shadow:0 8px 24px rgba(0,0,0,0.25);
         }
 
-        .screener-wrap {
-            margin-top: 18px;
-            border: 1px solid rgba(148, 163, 184, 0.16);
-            border-radius: 16px;
-            overflow: hidden;
-            background: rgba(15, 23, 42, 0.78);
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+        .panel-header{
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            padding:14px 16px;
+            border-bottom:1px solid rgba(255,255,255,0.06);
         }
 
-        .screener-header,
-        .screener-row {
-            display: grid;
-            grid-template-columns: 110px 1.8fr 1fr 1fr 1fr 0.9fr;
-            gap: 14px;
-            align-items: center;
-            padding: 14px 16px;
+        .panel-title{
+            font-size:16px;
+            font-weight:700;
+            color:var(--text);
         }
 
-        .screener-header {
-            background: rgba(30, 41, 59, 0.95);
-            border-bottom: 1px solid rgba(148, 163, 184, 0.16);
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: #94a3b8;
-            font-weight: 700;
+        .panel-subtitle{
+            font-size:12px;
+            color:var(--muted);
+            margin-top:2px;
         }
 
-        .screener-row {
-            border-bottom: 1px solid rgba(148, 163, 184, 0.10);
-            cursor: pointer;
-            transition: background 0.18s ease, border-color 0.18s ease;
+        .table-wrap{
+            overflow:auto;
+            max-height:430px;
         }
 
-        .screener-row:last-child {
-            border-bottom: none;
+        .combo-table{
+            width:100%;
+            border-collapse:collapse;
+            min-width:680px;
         }
 
-        .screener-row:hover {
-            background: rgba(37, 99, 235, 0.10);
+        .combo-table thead th{
+            position:sticky;
+            top:0;
+            z-index:2;
+            background:#141c3d;
+            color:#d7defd;
+            font-size:12px;
+            text-align:left;
+            padding:10px 12px;
+            border-bottom:1px solid rgba(255,255,255,0.08);
+            white-space:nowrap;
         }
 
-        .cell-symbol {
-            font-size: 18px;
-            font-weight: 800;
-            color: #ffffff;
+        .combo-table tbody td{
+            padding:10px 12px;
+            border-bottom:1px solid rgba(255,255,255,0.06);
+            font-size:13px;
+            color:#e8ecff;
+            white-space:nowrap;
+            vertical-align:middle;
         }
 
-        .cell-name {
-            font-size: 13px;
-            color: #cbd5e1;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+        .combo-table tbody tr:hover{
+            background:rgba(255,255,255,0.04);
         }
 
-        .cell-value {
-            font-size: 15px;
-            font-weight: 700;
-            color: #ffffff;
+        .green{ color:var(--green); font-weight:700; }
+        .red{ color:var(--red); font-weight:700; }
+        .yellow{ color:var(--yellow); font-weight:700; }
+        .muted{ color:var(--muted); }
+
+        .symbol-cell a{
+            color:#ffffff;
+            text-decoration:none;
+            font-weight:700;
         }
 
-        .green-text {
-            color: #22c55e;
+        .heat-cell{
+            font-weight:700;
+            border-radius:8px;
+            padding:6px 10px;
+            display:inline-block;
+            min-width:78px;
+            text-align:center;
         }
 
-        .red-text {
-            color: #ef4444;
+        .heat-cell-wide{
+            min-width:92px;
         }
 
-        .active-row {
-            background: rgba(37, 99, 235, 0.14);
-            outline: 1px solid rgba(37, 99, 235, 0.30);
+        .chart-card{
+            background:linear-gradient(180deg, var(--card), var(--card-2));
+            border:1px solid var(--border);
+            border-radius:18px;
+            overflow:hidden;
+            box-shadow:0 8px 24px rgba(0,0,0,0.25);
+            padding:14px;
         }
 
-        .selected-symbol-box {
-            margin-top: 10px;
-            color: #94a3b8;
-            font-size: 13px;
+        .chart-title{
+            font-size:16px;
+            font-weight:700;
+            margin-bottom:10px;
+            color:var(--text);
         }
 
-        @media (max-width: 900px) {
-            .screener-header,
-            .screener-row {
-                grid-template-columns: 95px 1.5fr 0.9fr 0.9fr 0.9fr 0.8fr;
-                gap: 10px;
-                padding: 12px;
-                font-size: 12px;
-            }
+        .tv-box{
+            width:100%;
+            height:520px;
+            border-radius:14px;
+            overflow:hidden;
+            background:#0d1430;
+        }
 
-            .cell-symbol {
-                font-size: 16px;
-            }
+        .empty-state{
+            padding:20px;
+            color:var(--muted);
+            font-size:14px;
+        }
 
-            .cell-value {
-                font-size: 13px;
-            }
-
-            .cell-name {
-                font-size: 12px;
+        @media (max-width: 1100px){
+            .top-panels{
+                grid-template-columns:1fr;
             }
         }
     </style>
 </head>
 <body>
 
-<div class="app-shell">
+<div class="app-layout">
 
-    <aside class="main-sidebar">
-        <div class="main-sidebar-title">Small Cap Tool</div>
-        <div class="main-nav">
-            {{ main_menu_html|safe }}
-        </div>
-    </aside>
+    <div class="main-nav">
+        <div class="nav-title">Small Cap Tool</div>
+        {{ main_menu_html|safe }}
+    </div>
 
-    <main class="main-content">
-        <div class="container">
+    <div class="main-content">
+        <div class="combo-wrap">
 
-            <div class="main-title">Top Gainers</div>
+            <div class="top-panels">
 
-            <div class="section-header-line">
-                <div style="color:#94a3b8;">Market movers de la sesión</div>
-                <button class="mini-refresh" onclick="loadGainers()">Actualizar</button>
-            </div>
+                <div class="panel">
+                    <div class="panel-header">
+                        <div>
+                            <div class="panel-title">High of the day</div>
+                            <div class="panel-subtitle">Gainers</div>
+                        </div>
+                    </div>
 
-            <div id="selected-symbol-box" class="selected-symbol-box">
-                Gráfica actual: <strong id="selected-symbol-label">SPY</strong>
-            </div>
-
-            <div id="gainers-content" class="gainers-loading">
-                Cargando gainers...
-            </div>
-
-            <div class="card" style="margin-top:30px; position:relative;">
-                <div style="
-                    position:absolute;
-                    top:10px;
-                    right:15px;
-                    z-index:10;
-                    background:rgba(15, 23, 42, 0.8);
-                    color:#f59e0b;
-                    padding:6px 10px;
-                    border-radius:999px;
-                    font-size:11px;
-                    font-weight:600;
-                    border:1px solid rgba(245, 158, 11, 0.4);
-                ">
-                    ⚠️ Delayed chart
+                    <div class="table-wrap">
+                        <table class="combo-table">
+                            <thead>
+                                <tr>
+                                    <th>Symbol</th>
+                                    <th>Price</th>
+                                    <th>Change %</th>
+                                    <th>5m</th>
+                                    <th>Float M</th>
+                                    <th>Volume</th>
+                                    <th>RVOL</th>
+                                </tr>
+                            </thead>
+                            <tbody id="gainers-body">
+                                <tr><td colspan="7" class="empty-state">Cargando gainers...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
 
-                <div id="tv_chart_container" style="height:500px;"></div>
+                <div class="panel">
+                    <div class="panel-header">
+                        <div>
+                            <div class="panel-title">Momentum stocks</div>
+                            <div class="panel-subtitle">Only high</div>
+                        </div>
+                    </div>
+
+                    <div class="table-wrap">
+                        <table class="combo-table">
+                            <thead>
+                                <tr>
+                                    <th>Symbol</th>
+                                    <th>Price</th>
+                                    <th>1m</th>
+                                    <th>5m</th>
+                                    <th>Volume</th>
+                                </tr>
+                            </thead>
+                            <tbody id="momentum-body">
+                                <tr><td colspan="5" class="empty-state">Cargando momentum...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="chart-card">
+                <div class="chart-title">SPY Chart</div>
+                <div class="tv-box">
+                    <div class="tradingview-widget-container" style="height:100%;width:100%;">
+                        <div id="tradingview_spy" style="height:100%;width:100%;"></div>
+                    </div>
+                </div>
             </div>
 
         </div>
-    </main>
+    </div>
 
 </div>
 
-<script src="https://s3.tradingview.com/tv.js"></script>
-
 <script>
-let selectedSymbol = "SPY";
-
-function updateChart(symbol) {
-    selectedSymbol = symbol;
-
-    const container = document.getElementById("tv_chart_container");
-    const label = document.getElementById("selected-symbol-label");
-
-    if (label) {
-        label.textContent = symbol;
-    }
-
-    if (container) {
-        container.innerHTML = "";
-    }
-
-    document.querySelectorAll(".screener-row").forEach(row => {
-        row.classList.remove("active-row");
-    });
-
-    const activeRow = document.getElementById("row-" + symbol);
-    if (activeRow) {
-        activeRow.classList.add("active-row");
-    }
-
-    new TradingView.widget({
-        "width": "100%",
-        "height": 500,
-        "symbol": symbol,
-        "interval": "5",
-        "timezone": "Europe/Madrid",
-        "theme": "dark",
-        "style": "1",
-        "locale": "es",
-        "toolbar_bg": "#1e293b",
-        "enable_publishing": false,
-        "allow_symbol_change": true,
-        "container_id": "tv_chart_container"
-    });
+function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
 }
 
-function formatNumber(value) {
-    if (value === null || value === undefined || value === "" || value === "N/A") {
-        return "N/A";
+function heatStylePercent(value) {
+    const n = Number(value);
+    if (isNaN(n)) return "color:#9aa4d1;";
+
+    if (n === 0) {
+        return "color:#cbd5e1;background:rgba(148,163,184,0.10);";
     }
 
-    const num = Number(value);
-    if (Number.isNaN(num)) {
-        return value;
+    if (n > 0) {
+        const alpha = clamp(0.12 + (Math.abs(n) / 70) * 0.55, 0.12, 0.70);
+        return `color:#22c55e;background:rgba(34,197,94,${alpha});`;
     }
 
-    if (num >= 1_000_000_000) return (num / 1_000_000_000).toFixed(2) + "B";
-    if (num >= 1_000_000) return (num / 1_000_000).toFixed(2) + "M";
-    if (num >= 1_000) return (num / 1_000).toFixed(2) + "K";
-    return num.toFixed(2);
+    const alpha = clamp(0.12 + (Math.abs(n) / 70) * 0.55, 0.12, 0.70);
+    return `color:#ff5c7a;background:rgba(255,92,122,${alpha});`;
+}
+
+function heatStyleMomentum(value) {
+    const n = Number(value);
+    if (isNaN(n)) return "color:#9aa4d1;";
+
+    if (n === 0) {
+        return "color:#cbd5e1;background:rgba(148,163,184,0.10);";
+    }
+
+    if (n > 0) {
+        const alpha = clamp(0.14 + (Math.abs(n) / 8) * 0.60, 0.14, 0.78);
+        return `color:#22c55e;background:rgba(34,197,94,${alpha});`;
+    }
+
+    const alpha = clamp(0.14 + (Math.abs(n) / 8) * 0.60, 0.14, 0.78);
+    return `color:#ff5c7a;background:rgba(255,92,122,${alpha});`;
 }
 
 function formatPrice(value) {
-    if (value === null || value === undefined || value === "" || value === "N/A") {
-        return "N/A";
-    }
-    const num = Number(value);
-    if (Number.isNaN(num)) return value;
-    return num.toFixed(4);
+    const n = Number(value);
+    if (isNaN(n)) return "-";
+    return n.toFixed(2);
 }
 
 function formatPercent(value) {
-    if (value === null || value === undefined || value === "" || value === "N/A") {
-        return "N/A";
-    }
-    const num = Number(value);
-    if (Number.isNaN(num)) return value;
-    return num.toFixed(2) + "%";
+    const n = Number(value);
+    if (isNaN(n)) return "-";
+    return `${n.toFixed(2)}%`;
 }
 
-function renderGainers(data) {
-    const container = document.getElementById("gainers-content");
+function formatVolume(value) {
+    const n = Number(value);
+    if (isNaN(n)) return "-";
+    return n.toLocaleString("es-ES");
+}
 
-    if (!Array.isArray(data) || data.length === 0) {
-        container.className = "gainers-empty";
-        container.innerHTML = "No hay gainers disponibles ahora mismo.";
-        return;
-    }
+function formatFloatMillions(value) {
+    const n = Number(value);
+    if (isNaN(n)) return "-";
+    return `${(n / 1000000).toFixed(2)}M`;
+}
 
-    const rows = data.map(item => {
-        const symbol = item.symbol || item.ticker || "N/A";
-        const companyName = item.companyName || item.name || "";
-        const price = item.price ?? item.last ?? "N/A";
-        const changePercent = item.changePercent ?? item.percent_change ?? item.change_pct ?? "N/A";
-        const volume = item.volume ?? "N/A";
-        const rvol = item.rvol ?? "N/A";
-
-        const changeNum = Number(changePercent);
-        const changeClass = !Number.isNaN(changeNum)
-            ? (changeNum >= 0 ? "green-text" : "red-text")
-            : "";
-
-        const rvolText = (!isNaN(Number(rvol))) ? Number(rvol).toFixed(2) : rvol;
-
-        return `
-            <div class="screener-row ${symbol === selectedSymbol ? 'active-row' : ''}" id="row-${symbol}" onclick="updateChart('${symbol}')">
-                <div class="cell-symbol">${symbol}</div>
-                <div class="cell-name">${companyName}</div>
-                <div class="cell-value">${formatPrice(price)}</div>
-                <div class="cell-value ${changeClass}">${formatPercent(changePercent)}</div>
-                <div class="cell-value">${formatNumber(volume)}</div>
-                <div class="cell-value">${rvolText}</div>
-            </div>
-        `;
-    }).join("");
-
-    container.className = "";
-    container.innerHTML = `
-        <div class="screener-wrap">
-            <div class="screener-header">
-                <div>Symbol</div>
-                <div>Company</div>
-                <div>Price</div>
-                <div>Change %</div>
-                <div>Volume</div>
-                <div>RVOL</div>
-            </div>
-            ${rows}
-        </div>
-    `;
+function formatRvol(value) {
+    const n = Number(value);
+    if (isNaN(n)) return "-";
+    return n.toFixed(2);
 }
 
 async function loadGainers() {
-    const container = document.getElementById("gainers-content");
-    container.className = "gainers-loading";
-    container.innerHTML = "Cargando gainers...";
-
     try {
-        const response = await fetch("/api/gainers");
-        const data = await response.json();
-        renderGainers(data);
-    } catch (error) {
-        container.className = "gainers-error";
-        container.innerHTML = "Error cargando gainers.";
+        const res = await fetch("/api/gainers");
+        const data = await res.json();
+        const tbody = document.getElementById("gainers-body");
+        tbody.innerHTML = "";
+
+        if (!data || !data.length) {
+            tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No hay datos de gainers.</td></tr>';
+            return;
+        }
+
+        data.forEach(row => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td class="symbol-cell">
+                    <a href="/?ticker=${row.symbol}">${row.symbol ?? "-"}</a>
+                </td>
+                <td>${formatPrice(row.price)}</td>
+                <td><span class="heat-cell heat-cell-wide" style="${heatStylePercent(row.change_pct)}">${formatPercent(row.change_pct)}</span></td>
+                <td><span class="heat-cell" style="${heatStyleMomentum(row.change_5m)}">${formatPercent(row.change_5m)}</span></td>
+                <td class="red">${formatFloatMillions(row.float_shares)}</td>
+                <td class="yellow">${formatVolume(row.volume)}</td>
+                <td class="green">${formatRvol(row.rvol)}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } catch (err) {
+        console.error("Error cargando gainers:", err);
+        document.getElementById("gainers-body").innerHTML =
+            '<tr><td colspan="7" class="empty-state">Error cargando gainers.</td></tr>';
     }
 }
 
-window.onload = function() {
-    updateChart("SPY");
-    loadGainers();
-};
+async function loadMomentum() {
+    try {
+        const res = await fetch("/api/momentum");
+        const data = await res.json();
+        const tbody = document.getElementById("momentum-body");
+        tbody.innerHTML = "";
+
+        if (!data || !data.length) {
+            tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No hay datos de momentum.</td></tr>';
+            return;
+        }
+
+        data.forEach(row => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td class="symbol-cell">
+                    <a href="/?ticker=${row.symbol}">${row.symbol ?? "-"}</a>
+                </td>
+                <td>${formatPrice(row.price)}</td>
+                <td><span class="heat-cell" style="${heatStyleMomentum(row.change_1m)}">${formatPercent(row.change_1m)}</span></td>
+                <td><span class="heat-cell" style="${heatStyleMomentum(row.change_5m)}">${formatPercent(row.change_5m)}</span></td>
+                <td class="yellow">${formatVolume(row.volume)}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } catch (err) {
+        console.error("Error cargando momentum:", err);
+        document.getElementById("momentum-body").innerHTML =
+            '<tr><td colspan="5" class="empty-state">Error cargando momentum.</td></tr>';
+    }
+}
+
+loadGainers();
+loadMomentum();
+setInterval(loadGainers, 10000);
+setInterval(loadMomentum, 10000);
+</script>
+
+<script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+<script>
+new TradingView.widget({
+    container_id: "tradingview_spy",
+    width: "100%",
+    height: "100%",
+    symbol: "{{ chart_symbol or 'AMEX:SPY' }}",
+    interval: "5",
+    timezone: "Europe/Madrid",
+    theme: "dark",
+    style: "1",
+    locale: "es",
+    toolbar_bg: "#0f1630",
+    enable_publishing: false,
+    hide_top_toolbar: false,
+    hide_legend: false,
+    save_image: false,
+    studies: [],
+    withdateranges: true,
+    allow_symbol_change: true
+});
 </script>
 
 </body>
