@@ -3,8 +3,8 @@ import yfinance as yf
 
 
 CANDIDATE_SYMBOLS = [
-    "APLS", "MASK", "BFRG", "KIDZ", "GVH", "NPT", "CNTA",
-    "WSHP", "OXBR", "CTXR", "TOP", "TPST", "IMPP", "SILO",
+    "ELAB", "EEIQ", "ASTC", "BFRG", "UGRO", "GLND", "QNTM",
+    "RBNE", "JCSE", "ICU", "TOP", "TPST", "IMPP", "SILO",
     "XELA", "BBLG", "GROM", "HUBC", "MULN", "FFIE",
     "NKLA", "TTOO", "APRN", "GNS", "WIMI", "HOLO",
     "KULR", "OPTT", "ABVC", "HUDI"
