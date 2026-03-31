@@ -8,9 +8,15 @@ from html import escape
 import requests
 import yfinance as yf
 from bs4 import BeautifulSoup
-from flask import Flask, request, redirect, url_for, render_template
+from flask import Flask, request, redirect, url_for, render_template, jsonify
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import check_password_hash, generate_password_hash
+
+from services.screener_service import build_gainers, build_momentum
+from services.market_scanner import scan_market
+from services.gap_stats_service import build_gap_stats
+
+TWELVEDATA_API_KEY = "18ba8881934b4b84b18577fb193d0524"
 
 app = Flask(__name__)
 
@@ -33,8 +39,8 @@ REQUEST_TIMEOUT = 20
 DB_FILE = "app.db"
 STORAGE_FILE = "storage.json"
 
-# LOGIN SIMPLE
 
+# LOGIN SIMPLE
 class User(UserMixin):
     def __init__(self, user_id, username, is_admin=False):
         self.id = str(user_id)
@@ -137,6 +143,7 @@ def format_market_cap(value):
     except Exception:
         return str(value)
 
+
 def get_db_connection():
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row
@@ -230,6 +237,90 @@ def risk_badge_class(risk_level: str):
     if risk_level == "MEDIUM":
         return "risk-medium"
     return "risk-low"
+
+
+def get_max_volume_5y(ticker: str):
+    try:
+        stock = yf.Ticker(ticker)
+        hist_5y = stock.history(period="5y", interval="1d", auto_adjust=False)
+
+        if hist_5y is None or hist_5y.empty:
+            return {
+                "max_volume_5y": None,
+                "max_volume_5y_date": None,
+            }
+
+        if "Volume" not in hist_5y.columns:
+            return {
+                "max_volume_5y": None,
+                "max_volume_5y_date": None,
+            }
+
+        hist_5y = hist_5y.dropna(subset=["Volume"])
+        if hist_5y.empty:
+            return {
+                "max_volume_5y": None,
+                "max_volume_5y_date": None,
+            }
+
+        # Excluir la última fila para comparar contra el récord previo
+        if len(hist_5y) > 1:
+            hist_compare = hist_5y.iloc[:-1].copy()
+        else:
+            hist_compare = hist_5y.copy()
+
+        if hist_compare.empty:
+            return {
+                "max_volume_5y": None,
+                "max_volume_5y_date": None,
+            }
+
+        max_idx = hist_compare["Volume"].idxmax()
+        max_volume = hist_compare.loc[max_idx, "Volume"]
+        max_date = max_idx.strftime("%Y-%m-%d")
+
+        return {
+            "max_volume_5y": int(max_volume),
+            "max_volume_5y_date": max_date,
+        }
+
+    except Exception as e:
+        print("ERROR get_max_volume_5y:", e)
+        return {
+            "max_volume_5y": None,
+            "max_volume_5y_date": None,
+        }
+
+        # Excluimos la última barra para comparar el volumen de hoy contra el récord previo
+        if len(hist_5y) > 1:
+            hist_compare = hist_5y.iloc[:-1].copy()
+        else:
+            hist_compare = hist_5y.copy()
+
+        if hist_compare.empty:
+            return {
+                "max_volume_5y": None,
+                "max_volume_5y_date": None,
+            }
+
+        max_idx = hist_compare["Volume"].idxmax()
+        max_volume = safe_scalar(hist_compare.loc[max_idx, "Volume"])
+
+        if hasattr(max_idx, "strftime"):
+            max_date = max_idx.strftime("%Y-%m-%d")
+        else:
+            max_date = str(max_idx)
+
+        return {
+            "max_volume_5y": int(max_volume),
+            "max_volume_5y_date": max_date,
+        }
+
+    except Exception:
+        return {
+            "max_volume_5y": None,
+            "max_volume_5y_date": None,
+        }
 
 
 def build_trader_conclusion(dilution_result, sec_status, news, price_detection):
@@ -413,6 +504,17 @@ def get_stock_data(ticker: str):
         except Exception:
             pass
 
+        max_vol_data = get_max_volume_5y(ticker)
+        max_volume_5y = max_vol_data.get("max_volume_5y")
+        max_volume_5y_date = max_vol_data.get("max_volume_5y_date")
+
+        is_record_volume = False
+        try:
+            if volume not in [None, "N/A"] and max_volume_5y not in [None, "N/A"]:
+                is_record_volume = float(volume) > float(max_volume_5y)
+        except Exception:
+            is_record_volume = False
+
         return {
             "symbol": ticker,
             "companyName": company_name,
@@ -431,11 +533,109 @@ def get_stock_data(ticker: str):
             "sharesOutstanding": shares_outstanding,
             "institutionalOwnership": institutional_ownership,
             "insiderOwnership": insider_ownership,
+            "maxVolume5Y": max_volume_5y,
+            "maxVolume5YFormatted": format_number(max_volume_5y),
+            "maxVolume5YDate": max_volume_5y_date,
+            "isRecordVolume": is_record_volume,
         }
 
     except Exception as e:
         return {"error": str(e)}
 
+def get_twelvedata_intraday(symbol="AAPL", interval="1min", outputsize=120):
+    url = "https://api.twelvedata.com/time_series"
+    params = {
+        "symbol": symbol,
+        "interval": interval,
+        "outputsize": outputsize,
+        "apikey": TWELVEDATA_API_KEY,
+        "prepost": "true"  # 🔥 ESTA ES LA CLAVE
+    }
+
+    try:
+        r = requests.get(url, params=params, timeout=10)
+        data = r.json()
+
+        if data.get("status") != "ok":
+            return {"ok": False, "error": data.get("message", "Error con Twelve Data")}
+
+        values = data.get("values", [])
+        if not values:
+            return {"ok": False, "error": "No hay datos"}
+
+        return {"ok": True, "data": data}
+
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def get_intraday_snapshot(symbol="AAPL"):
+    result = get_twelvedata_intraday(symbol=symbol, interval="1min", outputsize=120)
+
+    # 🔥 Precio realtime SIEMPRE
+    realtime_price = get_realtime_price(symbol)
+
+    # ❌ Si Twelve Data falla → fallback Yahoo
+    if not result["ok"] or not result.get("data", {}).get("values"):
+
+        try:
+            stock = yf.Ticker(symbol)
+            hist = stock.history(period="1d", interval="1m")
+
+            if hist is not None and not hist.empty:
+                intraday_volume = int(hist["Volume"].sum())
+                bars = len(hist)
+            else:
+                intraday_volume = "N/A"
+                bars = 0
+
+        except:
+            intraday_volume = "N/A"
+            bars = 0
+
+        return {
+            "price": realtime_price,
+            "intraday_volume": intraday_volume,
+            "bars": bars,
+            "error": "Fallback Yahoo"
+        }
+
+    # ✅ Si Twelve Data funciona
+    data = result["data"]
+    values = data["values"]
+
+    total_volume = 0
+    for bar in values:
+        try:
+            total_volume += int(float(bar.get("volume", 0)))
+        except:
+            pass
+
+    return {
+        "price": realtime_price,
+        "intraday_volume": total_volume,
+        "bars": len(values),
+        "error": None
+    }
+
+def get_realtime_price(symbol="AAPL"):
+    url = "https://api.twelvedata.com/price"
+    params = {
+        "symbol": symbol,
+        "apikey": TWELVEDATA_API_KEY
+    }
+
+    try:
+        r = requests.get(url, params=params, timeout=10)
+        data = r.json()
+
+        if "price" in data:
+            return data["price"]
+
+        return "N/A"
+
+    except Exception:
+        return "N/A"
 
 # =========================
 # FINVIZ NEWS
@@ -779,6 +979,7 @@ def analyze_sec_offering_status(filings, max_docs_to_scan: int = 6):
             break
 
         filing_text = fetch_filing_text(filing["link"])
+
         if not filing_text:
             filing_text = fetch_filing_text(filing["index_link"])
 
@@ -1025,6 +1226,21 @@ def render_sidebar(current_ticker=""):
 
     return fav_html
 
+def test_twelvedata(symbol="AAPL"):
+    url = "https://api.twelvedata.com/time_series"
+    params = {
+        "symbol": symbol,
+        "interval": "1min",
+        "outputsize": 5,
+        "apikey": TWELVEDATA_API_KEY
+    }
+
+    try:
+        r = requests.get(url, params=params, timeout=10)
+        data = r.json()
+        return data
+    except Exception as e:
+        return {"error": str(e)}
 
 def render_note_box(ticker):
     note = get_note(ticker)
@@ -1179,7 +1395,6 @@ def render_price_detection(price_detection):
     </div>
     """)
 
-
     rows.append(f"""
     <div class="status-row">
         <span>Warrant Exercise Price</span>
@@ -1209,7 +1424,7 @@ def render_price_detection(price_detection):
             sources_html += f"""
             <div class="list-card">
                 <div><b>{escape(src.get('form', ''))}</b> | {escape(src.get('date', ''))}</div>
-                <div class="filing-desc">{escape(" | ".join(parts))}</div>
+                <div class="filing-desc">{escape(' | '.join(parts))}</div>
                 <div class="filing-links">
                     <a href="{src.get('link', '#')}" target="_blank">Direct filing</a>
                     <a href="{src.get('index_link', '#')}" target="_blank">SEC index</a>
@@ -1229,7 +1444,7 @@ def render_price_detection(price_detection):
     """
 
 
-def render_summary(data, dilution_result, news, sec_status, price_detection):
+def render_summary(data, dilution_result, news, sec_status, price_detection, intraday_data=None):
     risk_level = dilution_result["risk_level"]
     badge_class = risk_badge_class(risk_level)
     quick_flags = build_quick_flags(news, sec_status, dilution_result, price_detection)
@@ -1238,9 +1453,18 @@ def render_summary(data, dilution_result, news, sec_status, price_detection):
     favorite_text = "★ Remove favorite" if is_favorite(ticker) else "☆ Add favorite"
     note = get_note(ticker)
 
-    flags_html = ""
+    intraday_price = "N/A"
+    intraday_volume = "N/A"
+    intraday_bars = "N/A"
+
+    if intraday_data:
+        intraday_price = intraday_data.get("price", "N/A")
+        intraday_volume = intraday_data.get("intraday_volume", "N/A")
+        intraday_bars = intraday_data.get("bars", "N/A")
+
+    quick_flags_html = ""
     for text, cls in quick_flags:
-        flags_html += f'<span class="big-pill {cls}">{escape(text)}</span>'
+        quick_flags_html += f'<span class="big-pill {cls}">{escape(text)}</span>'
 
     score_flags_html = ""
     if dilution_result["flags"]:
@@ -1256,6 +1480,19 @@ def render_summary(data, dilution_result, news, sec_status, price_detection):
             <div>{escape(note)}</div>
         </div>
         """
+
+    volume_value_class = "metric-value metric-alert-volume" if data.get("isRecordVolume") else "metric-value"
+    volume_label_class = "metric-title metric-alert-label" if data.get("isRecordVolume") else "metric-title"
+
+    record_banner = ""
+    if data.get("isRecordVolume"):
+        record_banner = """
+        <div class="record-volume-banner">
+            🚨 ALERTA DE VOLUMEN: El volumen de hoy supera el máximo diario histórico de los últimos 5 años
+        </div>
+        """
+
+    max_vol_date = f" ({escape(str(data['maxVolume5YDate']))})" if data.get("maxVolume5YDate") else ""
 
     return f"""
     <div class="hero-card">
@@ -1276,8 +1513,10 @@ def render_summary(data, dilution_result, news, sec_status, price_detection):
 
         {note_banner}
 
+        {record_banner}
+
         <div class="pill-row">
-            {flags_html}
+            {quick_flags_html}
         </div>
 
         <div class="conclusion-box">
@@ -1288,13 +1527,28 @@ def render_summary(data, dilution_result, news, sec_status, price_detection):
 
     <div class="metrics-grid">
         <div class="metric-card"><div class="metric-title">Price</div><div class="metric-value">{data['price']}</div></div>
+        <div class="metric-card"><div class="metric-title">Intraday Price</div><div class="metric-value">{intraday_price}</div></div>
         <div class="metric-card"><div class="metric-title">Prev Close</div><div class="metric-value">{data['prevClose']}</div></div>
         <div class="metric-card"><div class="metric-title">Open</div><div class="metric-value">{data['open']}</div></div>
         <div class="metric-card"><div class="metric-title">High</div><div class="metric-value">{data['high']}</div></div>
         <div class="metric-card"><div class="metric-title">Low</div><div class="metric-value">{data['low']}</div></div>
-        <div class="metric-card"><div class="metric-title">Volume</div><div class="metric-value">{format_number(data['volume'])}</div></div>
+
+        <div class="metric-card">
+            <div class="{volume_label_class}">Volume</div>
+            <div class="{volume_value_class}">{format_number(data['volume'])}</div>
+        </div>
+
+        <div class="metric-card"><div class="metric-title">Intraday Volume</div><div class="metric-value">{format_number(intraday_volume)}</div></div>
+        <div class="metric-card"><div class="metric-title">Intraday Bars</div><div class="metric-value">{intraday_bars}</div></div>
         <div class="metric-card"><div class="metric-title">Avg Volume</div><div class="metric-value">{format_number(data['avgVolume'])}</div></div>
         <div class="metric-card"><div class="metric-title">RVOL</div><div class="metric-value">{data['rvol']}</div></div>
+
+        <div class="metric-card">
+            <div class="metric-title">Max Vol 5Y</div>
+            <div class="metric-value metric-historical-volume">{data.get('maxVolume5YFormatted', 'N/A')}</div>
+            <div class="metric-subvalue">{max_vol_date}</div>
+        </div>
+
         <div class="metric-card"><div class="metric-title">Market Cap</div><div class="metric-value">{format_market_cap(data['marketCap'])}</div></div>
         <div class="metric-card"><div class="metric-title">Float</div><div class="metric-value">{format_number(data['floatShares'])}</div></div>
         <div class="metric-card"><div class="metric-title">Shares O/S</div><div class="metric-value">{format_number(data['sharesOutstanding'])}</div></div>
@@ -1309,6 +1563,28 @@ def render_summary(data, dilution_result, news, sec_status, price_detection):
         {score_flags_html if score_flags_html else '<div class="empty-box">No major paper-risk flags detected.</div>'}
     </div>
     """
+
+
+def render_main_menu(active_page="analyzer"):
+    items = [
+        ("Analyzer", url_for("home"), active_page == "analyzer"),
+        ("Gainers", url_for("gainers_page"), active_page == "gainers"),
+        ("Momentum", url_for("momentum_page"), active_page == "momentum"),
+        ("Gap Stats", url_for("gap_stats_page"), active_page == "gap_stats"),
+    ]
+
+    if current_user.is_authenticated and current_user.is_admin:
+        items.append(("Create User", url_for("create_user_route"), active_page == "create_user"))
+
+    items.append(("Logout", url_for("logout"), False))
+
+    html = ""
+
+    for label, link, active in items:
+        active_class = " main-nav-active" if active else ""
+        html += f'<a class="main-nav-link{active_class}" href="{link}">{escape(label)}</a>'
+
+    return html
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -1332,12 +1608,21 @@ def login():
         if row and check_password_hash(row["password_hash"], password):
             user = User(row["id"], row["username"], bool(row["is_admin"]))
             login_user(user)
-            return redirect(url_for("home"))  # 👈 aquí mantenemos "home"
+            return redirect(url_for("home"))
         else:
             error = "Usuario o contraseña incorrectos"
 
     return render_template("login.html", error=error)
 
+@app.route("/test")
+def test_api():
+    data = test_twelvedata("AAPL")
+    return jsonify(data)
+
+@app.route("/test_intraday")
+def test_intraday():
+    data = get_intraday_snapshot("AAPL")
+    return jsonify(data)
 
 @app.route("/logout")
 @login_required
@@ -1362,6 +1647,7 @@ def save_note_route():
         save_note(ticker, note)
     return redirect(url_for("home", ticker=ticker))
 
+
 @app.route("/create_user", methods=["GET", "POST"])
 @login_required
 def create_user_route():
@@ -1370,7 +1656,7 @@ def create_user_route():
 
     error = None
     success = None
-    # test deploy
+
     if request.method == "POST":
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "").strip()
@@ -1384,7 +1670,9 @@ def create_user_route():
             except sqlite3.IntegrityError:
                 error = "El usuario ya existe"
 
-    return render_template("create_user.html", error=error, success=success)
+    main_menu_html = render_main_menu("create_user")
+    return render_template("create_user.html", error=error, success=success, main_menu_html=main_menu_html)
+
 
 @app.route("/", methods=["GET", "POST"])
 @login_required
@@ -1397,6 +1685,7 @@ def home():
 
     if ticker:
         data = get_stock_data(ticker)
+        intraday_data = get_intraday_snapshot(ticker)
 
         if "error" in data:
             content = f'<div class="error-box"><b>Error:</b> {escape(data["error"])}</div>'
@@ -1407,7 +1696,7 @@ def home():
             price_detection = detect_price_levels_from_sec(sec_status)
             dilution_result = detect_dilution(data, news, filings or [], sec_status, price_detection)
 
-            summary_html = render_summary(data, dilution_result, news, sec_status, price_detection)
+            summary_html = render_summary(data, dilution_result, news, sec_status, price_detection, intraday_data)
             note_box_html = render_note_box(ticker)
             news_html = render_news(news)
             filings_html = render_filings(filings)
@@ -1442,13 +1731,89 @@ def home():
             """
 
     sidebar_html = render_sidebar(ticker)
+    main_menu_html = render_main_menu("analyzer")
 
     return render_template(
         "index.html",
         ticker=ticker,
         content=content,
-        sidebar_html=sidebar_html
+        sidebar_html=sidebar_html,
+        main_menu_html=main_menu_html
     )
+
+
+@app.route("/gainers")
+@login_required
+def gainers_page():
+    main_menu_html = render_main_menu("gainers")
+    return render_template("gainers.html", main_menu_html=main_menu_html)
+
+
+@app.route("/momentum")
+@login_required
+def momentum_page():
+    main_menu_html = render_main_menu("momentum")
+    return render_template("momentum.html", main_menu_html=main_menu_html)
+
+
+@app.route("/gap-stats", methods=["GET", "POST"])
+@login_required
+def gap_stats_page():
+    ticker = request.form.get("ticker", "").strip().upper() if request.method == "POST" else ""
+    gap_percent = request.form.get("gap_percent", "5") if request.method == "POST" else "5"
+    period_key = request.form.get("period_key", "1y") if request.method == "POST" else "1y"
+    gap_type = request.form.get("gap_type", "up") if request.method == "POST" else "up"
+
+    result = None
+    error = None
+
+    if request.method == "POST":
+        result = build_gap_stats(
+            ticker=ticker,
+            gap_percent=float(gap_percent),
+            period_key=period_key,
+            gap_type=gap_type
+        )
+
+        if result and result.get("error"):
+            error = result["error"]
+            result = None
+
+    main_menu_html = render_main_menu("gap_stats")
+
+    return render_template(
+        "gap_stats.html",
+        main_menu_html=main_menu_html,
+        ticker=ticker,
+        gap_percent=gap_percent,
+        period_key=period_key,
+        gap_type=gap_type,
+        result=result,
+        error=error,
+    )
+
+
+@app.route("/api/gainers")
+@login_required
+def api_gainers():
+    data = build_gainers()
+    print("GAINERS DATA:", data)
+    return jsonify(data)
+
+
+@app.route("/api/momentum")
+@login_required
+def api_momentum():
+    data = build_momentum()
+    print("MOMENTUM DATA:", data)
+    return jsonify(data)
+
+
+@app.route("/scanner")
+@login_required
+def scanner():
+    data = scan_market()
+    return render_template("scanner.html", data=data, main_menu_html=render_main_menu("scanner"))
 
 
 if __name__ == "__main__":
