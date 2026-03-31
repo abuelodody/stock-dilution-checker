@@ -3,8 +3,8 @@ import yfinance as yf
 
 
 CANDIDATE_SYMBOLS = [
-    "ELAB", "EEIQ", "ASTC", "BFRG", "UGRO", "GLND", "QNTM",
-    "RBNE", "JCSE", "ICU", "TOP", "TPST", "IMPP", "SILO",
+    "APLS", "MASK", "BFRG", "KIDZ", "GVH", "NPT", "CNTA",
+    "WSHP", "OXBR", "CTXR", "TOP", "TPST", "IMPP", "SILO",
     "XELA", "BBLG", "GROM", "HUBC", "MULN", "FFIE",
     "NKLA", "TTOO", "APRN", "GNS", "WIMI", "HOLO",
     "KULR", "OPTT", "ABVC", "HUDI"
@@ -76,6 +76,7 @@ def get_company_info(symbol):
 
         return {
             "name": name,
+            "companyName": name,
             "float_shares": float_shares,
             "avg_volume": avg_volume,
         }
@@ -83,6 +84,7 @@ def get_company_info(symbol):
         print(f"INFO FAIL {symbol}: {e}")
         return {
             "name": symbol,
+            "companyName": symbol,
             "float_shares": None,
             "avg_volume": None,
         }
@@ -116,12 +118,20 @@ def get_daily_snapshot(symbol):
         last = df.iloc[-1]
         prev_close = safe_scalar(df["Close"].iloc[-2]) if len(df) >= 2 else safe_scalar(last["Close"])
 
+        price = round(float(safe_scalar(last["Close"])), 4)
+        prev_close = round(float(prev_close), 4)
+        open_price = round(float(safe_scalar(last["Open"])), 4)
+        volume = int(float(safe_scalar(last["Volume"])))
+        day_change = safe_pct_change(price, prev_close)
+
         return {
             "symbol": symbol,
-            "price": round(float(safe_scalar(last["Close"])), 2),
-            "prev_close": round(float(prev_close), 4),
-            "open_price": round(float(safe_scalar(last["Open"])), 4),
-            "volume": int(float(safe_scalar(last["Volume"]))),
+            "price": price,
+            "prev_close": prev_close,
+            "open_price": open_price,
+            "volume": volume,
+            "day_change": day_change,
+            "changePercent": day_change,   # clave compatible con gainers.html
         }
 
     except Exception as e:
@@ -195,11 +205,11 @@ def build_gainers():
         price = snap["price"]
         prev_close = snap["prev_close"]
         volume = snap["volume"]
+        day_change = snap["day_change"]
 
         if not passes_basic_filters(price, volume):
             continue
 
-        day_change = safe_pct_change(price, prev_close)
         mom = get_intraday_momentum(symbol)
         info = get_company_info(symbol)
 
@@ -209,8 +219,13 @@ def build_gainers():
         results.append({
             "symbol": symbol,
             "name": info.get("name"),
+            "companyName": info.get("companyName"),
             "price": price,
+            "prev_close": prev_close,
             "day_change": day_change,
+            "changePercent": day_change,   # esta es la clave importante
+            "percent_change": day_change,  # compatibilidad extra
+            "change_pct": day_change,      # compatibilidad extra
             "change_5m": mom["change_5m"],
             "change_1m": mom["change_1m"],
             "volume": volume,
