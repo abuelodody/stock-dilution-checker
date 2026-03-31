@@ -5,6 +5,9 @@ import re
 from datetime import datetime, timedelta
 from html import escape
 
+import sqlite3
+from flask_login import UserMixin
+
 import requests
 import yfinance as yf
 from bs4 import BeautifulSoup
@@ -36,8 +39,16 @@ FINVIZ_HEADERS = {
 }
 
 REQUEST_TIMEOUT = 20
-DB_FILE = "app.db"
-STORAGE_FILE = "storage.json"
+
+PERSISTENT_DIR = os.environ.get("RENDER_DISK_PATH", "/var/data")
+os.makedirs(PERSISTENT_DIR, exist_ok=True)
+
+DB_FILE = os.environ.get("DB_FILE", os.path.join(PERSISTENT_DIR, "app.db"))
+STORAGE_FILE = os.environ.get("STORAGE_FILE", os.path.join(PERSISTENT_DIR, "storage.json"))
+
+print("🔥 PERSISTENT_DIR =", PERSISTENT_DIR)
+print("🔥 DB_FILE =", DB_FILE)
+print("🔥 STORAGE_FILE =", STORAGE_FILE)
 
 
 # LOGIN SIMPLE
@@ -67,25 +78,53 @@ def load_user(user_id):
 # STORAGE
 # =========================
 def load_storage():
+    default_data = {
+        "history": [],
+        "favorites": [],
+        "notes": {}
+    }
+
     if not os.path.exists(STORAGE_FILE):
-        return {"favorites": [], "notes": {}}
+        return default_data.copy()
 
     try:
         with open(STORAGE_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
-            if "favorites" not in data:
-                data["favorites"] = []
-            if "notes" not in data:
-                data["notes"] = {}
-            return data
+
+        if not isinstance(data, dict):
+            return default_data.copy()
+
+        if "history" not in data or not isinstance(data["history"], list):
+            data["history"] = []
+
+        if "favorites" not in data or not isinstance(data["favorites"], list):
+            data["favorites"] = []
+
+        if "notes" not in data or not isinstance(data["notes"], dict):
+            data["notes"] = {}
+
+        return data
     except Exception:
-        return {"favorites": [], "notes": {}}
+        return default_data.copy()
 
 
 def save_storage(data):
-    with open(STORAGE_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    safe_data = {
+        "history": data.get("history", []),
+        "favorites": data.get("favorites", []),
+        "notes": data.get("notes", {})
+    }
 
+    with open(STORAGE_FILE, "w", encoding="utf-8") as f:
+        json.dump(safe_data, f, ensure_ascii=False, indent=2)
+
+def init_storage():
+    if not os.path.exists(STORAGE_FILE):
+        save_storage({
+            "history": [],
+            "favorites": [],
+            "notes": {}
+        })
 
 def toggle_favorite(ticker):
     storage = load_storage()
@@ -180,6 +219,7 @@ def create_user(username, password, is_admin=False):
 
 
 init_db()
+init_storage()
 
 try:
     create_user("admin", "Ss02s52n1975o-!", True)
@@ -1568,7 +1608,6 @@ def render_summary(data, dilution_result, news, sec_status, price_detection, int
 def render_main_menu(active_page="analyzer"):
     items = [
         ("Gainers", url_for("gainers_page"), active_page == "gainers"),
-        ("Momentum", url_for("momentum_page"), active_page == "momentum"),
         ("Analyzer", url_for("home"), active_page == "analyzer"),
         ("Gap Stats", url_for("gap_stats_page"), active_page == "gap_stats"),
     ]
