@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Top Gainers</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<div class="app-layout">
+
+    <div class="main-nav">
+        <div class="nav-title">Small Cap Tool</div>
+        {{ main_menu_html|safe }}
+    </div>
+
+    <div class="main-content">
+        <div class="card">
+            <h2>Top Gainers</h2>
+
+            <table class="screener-table">
+                <thead>
+                    <tr>
+                        <th>Ticker</th>
+                        <th>Precio</th>
+                        <th>% Día</th>
+                        <th>% 5m</th>
+                        <th>% 1m</th>
+                        <th>Volumen</th>
+                        <th>Float (M)</th>
+                        <th>RVOL</th>
+                    </tr>
+                </thead>
+                <tbody id="gainers-body"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+function getDayColor(value) {
+    const v = Number(value);
+    if (isNaN(v)) return "#cbd5e1";
+    if (v >= 50) return "#ff4d4f";
+    if (v >= 20) return "#f59e0b";
+    if (v > 0) return "#22c55e";
+    if (v <= -20) return "#ff4d4f";
+    if (v < 0) return "#f87171";
+    return "#cbd5e1";
+}
+
+function getMomentumColor(value) {
+    const v = Number(value);
+    if (isNaN(v)) return "#cbd5e1";
+    if (v >= 5) return "#22c55e";
+    if (v > 0) return "#86efac";
+    if (v <= -5) return "#ff4d4f";
+    if (v < 0) return "#fca5a5";
+    return "#cbd5e1";
+}
+
+function getRvolColor(value) {
+    const v = Number(value);
+    if (isNaN(v)) return "#cbd5e1";
+    if (v >= 5) return "#ff4d4f";
+    if (v >= 2) return "#f59e0b";
+    if (v >= 1) return "#22c55e";
+    return "#cbd5e1";
+}
+
+function formatPrice(value) {
+    const n = Number(value);
+    if (isNaN(n)) return "-";
+    return n.toFixed(2);
+}
+
+function formatPercent(value) {
+    const n = Number(value);
+    if (isNaN(n)) return "-";
+    return `${n.toFixed(2)}%`;
+}
+
+function formatVolume(value) {
+    const n = Number(value);
+    if (isNaN(n)) return "-";
+    return n.toLocaleString("es-ES");
+}
+
+function formatFloatM(value) {
+    const n = Number(value);
+    if (isNaN(n)) return "-";
+    return n.toFixed(2);
+}
+
+function formatRvol(value) {
+    const n = Number(value);
+    if (isNaN(n)) return "-";
+    return n.toFixed(2);
+}
+
+async function loadGainers() {
+    try {
+        const res = await fetch("/api/gainers");
+        const data = await res.json();
+
+        const tbody = document.getElementById("gainers-body");
+        tbody.innerHTML = "";
+
+        data.forEach(row => {
+            const tr = document.createElement("tr");
+
+            tr.innerHTML = `
+                <td>
+                    <a href="/?ticker=${row.symbol}" class="ticker-link">
+                        ${row.symbol ?? "-"}
+                    </a>
+                </td>
+                <td>${formatPrice(row.price)}</td>
+                <td style="color: ${getDayColor(row.day_change)}; font-weight: 700;">
+                    ${formatPercent(row.day_change)}
+                </td>
+                <td style="color: ${getMomentumColor(row.change_5m)}; font-weight: 700;">
+                    ${formatPercent(row.change_5m)}
+                </td>
+                <td style="color: ${getMomentumColor(row.change_1m)}; font-weight: 700;">
+                    ${formatPercent(row.change_1m)}
+                </td>
+                <td>${formatVolume(row.volume)}</td>
+                <td>${formatFloatM(row.float_m)}</td>
+                <td style="color: ${getRvolColor(row.rvol)}; font-weight: 700;">
+                    ${formatRvol(row.rvol)}
+                </td>
+            `;
+
+            tbody.appendChild(tr);
+        });
+
+    } catch (err) {
+        console.error("Error cargando gainers:", err);
+    }
+}
+
+loadGainers();
+setInterval(loadGainers, 10000);
+</script>
+
+</body>
+</html>
