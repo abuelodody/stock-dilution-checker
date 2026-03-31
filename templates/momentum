@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Momentum</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<div class="app-layout">
+
+    <div class="main-nav">
+        <div class="nav-title">Small Cap Tool</div>
+        {{ main_menu_html|safe }}
+    </div>
+
+    <div class="main-content">
+        <div class="card">
+            <h2>Momentum Scanner</h2>
+
+            <table class="screener-table">
+                <thead>
+                    <tr>
+                        <th>Ticker</th>
+                        <th>Precio</th>
+                        <th>% 1m</th>
+                        <th>% 5m</th>
+                        <th>Volumen</th>
+                    </tr>
+                </thead>
+                <tbody id="momentum-body"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+function getMomentumColor(value) {
+    const v = Number(value);
+    if (isNaN(v)) return "#cbd5e1";
+    if (v >= 5) return "#22c55e";
+    if (v > 0) return "#86efac";
+    if (v <= -5) return "#ff4d4f";
+    if (v < 0) return "#fca5a5";
+    return "#cbd5e1";
+}
+
+function formatPrice(value) {
+    const n = Number(value);
+    if (isNaN(n)) return "-";
+    return n.toFixed(2);
+}
+
+function formatPercent(value) {
+    const n = Number(value);
+    if (isNaN(n)) return "-";
+    return `${n.toFixed(2)}%`;
+}
+
+function formatVolume(value) {
+    const n = Number(value);
+    if (isNaN(n)) return "-";
+    return n.toLocaleString("es-ES");
+}
+
+async function loadMomentum() {
+    try {
+        const res = await fetch("/api/momentum");
+        const data = await res.json();
+
+        const tbody = document.getElementById("momentum-body");
+        tbody.innerHTML = "";
+
+        data.forEach(row => {
+            const tr = document.createElement("tr");
+
+            tr.innerHTML = `
+                <td>
+                    <a href="/?ticker=${row.symbol}" class="ticker-link">
+                        ${row.symbol ?? "-"}
+                    </a>
+                </td>
+                <td>${formatPrice(row.price)}</td>
+                <td style="color: ${getMomentumColor(row.change_1m)}; font-weight: 700;">
+                    ${formatPercent(row.change_1m)}
+                </td>
+                <td style="color: ${getMomentumColor(row.change_5m)}; font-weight: 700;">
+                    ${formatPercent(row.change_5m)}
+                </td>
+                <td>${formatVolume(row.volume)}</td>
+            `;
+
+            tbody.appendChild(tr);
+        });
+
+    } catch (err) {
+        console.error("Error cargando momentum:", err);
+    }
+}
+
+loadMomentum();
+setInterval(loadMomentum, 10000);
+</script>
+
+</body>
+</html>
