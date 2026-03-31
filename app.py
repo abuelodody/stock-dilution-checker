@@ -1567,9 +1567,9 @@ def render_summary(data, dilution_result, news, sec_status, price_detection, int
 
 def render_main_menu(active_page="analyzer"):
     items = [
-        ("Analyzer", url_for("home"), active_page == "analyzer"),
         ("Gainers", url_for("gainers_page"), active_page == "gainers"),
         ("Momentum", url_for("momentum_page"), active_page == "momentum"),
+        ("Analyzer", url_for("home"), active_page == "analyzer"),
         ("Gap Stats", url_for("gap_stats_page"), active_page == "gap_stats"),
     ]
 
@@ -1590,7 +1590,7 @@ def render_main_menu(active_page="analyzer"):
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if current_user.is_authenticated:
-        return redirect(url_for("home"))
+        return redirect(url_for("gainers_page"))
 
     error = None
 
@@ -1608,7 +1608,7 @@ def login():
         if row and check_password_hash(row["password_hash"], password):
             user = User(row["id"], row["username"], bool(row["is_admin"]))
             login_user(user)
-            return redirect(url_for("home"))
+            return redirect(url_for("gainers_page"))
         else:
             error = "Usuario o contraseña incorrectos"
 
@@ -1746,7 +1746,11 @@ def home():
 @login_required
 def gainers_page():
     main_menu_html = render_main_menu("gainers")
-    return render_template("gainers.html", main_menu_html=main_menu_html)
+    return render_template(
+        "gainers.html",
+        main_menu_html=main_menu_html,
+        chart_symbol="AMEX:SPY"
+    )
 
 
 @app.route("/momentum")
