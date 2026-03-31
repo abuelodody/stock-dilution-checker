@@ -1,36 +1,151 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <title>Stock Dilution Checker Pro</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <style>
+        .metric-historical-volume {
+            color: #ff5a5f;
+            font-weight: 800;
+        }
+
+        .metric-subvalue {
+            margin-top: 6px;
+            font-size: 12px;
+            color: #94a3b8;
+        }
+
+        .metric-alert-label {
+            color: #ff6b6b;
+            font-weight: 800;
+        }
+
+        .metric-alert-volume {
+            color: #ff3b3b;
+            font-weight: 900;
+            animation: pulseVolumeAlert 1s infinite;
+        }
+
+        .record-volume-banner {
+            margin: 16px 0 4px 0;
+            padding: 14px 16px;
+            border: 2px solid #ff3b3b;
+            border-radius: 14px;
+            background: rgba(255, 59, 59, 0.12);
+            color: #ff6b6b;
+            font-weight: 800;
+            text-align: center;
+            animation: pulseVolumeAlert 1s infinite;
+            box-shadow: 0 0 18px rgba(255, 59, 59, 0.18);
+        }
+
+        @keyframes pulseVolumeAlert {
+            0% {
+                opacity: 1;
+                transform: scale(1);
+            }
+            50% {
+                opacity: 0.55;
+                transform: scale(1.02);
+            }
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+    </style>
 </head>
+
 <body>
-    <div class="container">
-        <div class="main-title">Stock Dilution Checker PRO</div>
 
-        <div class="layout">
-            <div>
-                <div class="sidebar-card">
-                    <div class="sidebar-title">Favorites</div>
-                    {{ sidebar_html|safe }}
+<div class="app-shell">
+
+    <aside class="main-sidebar">
+        <div class="main-sidebar-title">Small Cap Tool</div>
+
+        <div class="main-nav">
+            {{ main_menu_html|safe }}
+        </div>
+
+        <div class="sidebar-card" style="margin-top: 20px;">
+            <div class="sidebar-title">Favorites</div>
+            {{ sidebar_html|safe }}
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <div class="container">
+            <div class="main-title">Stock Dilution Checker PRO</div>
+
+            <div class="layout">
+                <div style="width: 100%;">
+
+                    <div class="search-card">
+                        <form method="POST">
+                            <label class="search-label">Introduce ticker (ej: TSLA)</label>
+                            <div class="search-row">
+                                <input type="text" name="ticker" placeholder="Ej: TSLA" value="{{ ticker }}">
+                                <button type="submit">Analizar</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    {% if ticker %}
+                    <div style="position:absolute;
+                    top:10px;
+                    right:15px;
+                    z-index:10;
+                    background:rgba(15, 23, 42, 0.8);
+                    color:#f59e0b;padding:6px 10px;
+                    border-radius:999px;font-size:11px;
+                    font-weight:600;border:
+                    1px solid rgba(245, 158, 11, 0.4);">
+                        ⚠️ Delayed chart
+                    </div>
+                    <div class="card" style="margin-top:20px;">
+                        <div id="tradingview_chart" style="height:500px;"></div>
+                    </div>
+
+                    <script>
+                    function loadTradingViewChart() {
+                        if (typeof TradingView === "undefined") {
+                            setTimeout(loadTradingViewChart, 200);
+                            return;
+                        }
+
+                        new TradingView.widget({
+                            "width": "100%",
+                            "height": 500,
+                            "symbol": "{{ ticker|upper }}",
+                            "interval": "5",
+                            "timezone": "Europe/Madrid",
+                            "theme": "dark",
+                            "style": "1",
+                            "locale": "es",
+                            "toolbar_bg": "#1e293b",
+                            "enable_publishing": false,
+                            "allow_symbol_change": true,
+                            "container_id": "tradingview_chart"
+                        });
+                    }
+
+                    loadTradingViewChart();
+                    </script>
+                    {% endif %}
+
+                    {{ content|safe }}
+
                 </div>
-            </div>
-
-            <div>
-                <div class="search-card">
-                    <form method="POST">
-                        <label class="search-label">Introduce ticker (ej: TSLA)</label>
-                        <div class="search-row">
-                            <input type="text" name="ticker" placeholder="Ej: TSLA" value="{{ ticker }}">
-                            <button type="submit">Analizar</button>
-                        </div>
-                    </form>
-                </div>
-
-                {{ content|safe }}
             </div>
         </div>
-    </div>
+    </main>
+
+</div>
+
+<script src="https://s3.tradingview.com/tv.js"></script>
+
 </body>
 </html>
