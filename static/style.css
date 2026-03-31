@@ -741,3 +741,25 @@ button {
     width: 100% !important;
     min-height: 520px;
 }
+
+.heat-cell{
+    font-weight:700;
+    border-radius:8px;
+    padding:6px 10px !important;
+    display:inline-block;
+    min-width:78px;
+    text-align:center;
+}
+
+.heat-cell-wide{
+    min-width:90px;
+}
+
+.neutral-cell{
+    color:var(--muted);
+    font-weight:700;
+}
+
+.combo-table td .heat-cell{
+    margin:0;
+}
