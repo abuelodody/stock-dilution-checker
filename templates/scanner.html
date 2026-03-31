@@ -1,106 +1,57 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Momentum</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
-<body>
+<h1>Screener Pro Small Caps</h1>
 
-<div class="app-layout">
+{% if not data %}
+  <div style="padding:16px; background:#1e1e1e; color:#fff; border-radius:10px; margin-bottom:20px;">
+    No han salido resultados.
+    <br><br>
+    Posibles motivos:
+    <ul>
+      <li>No hay movers claros ahora mismo</li>
+      <li>Yahoo no ha devuelto intradía en algunos tickers</li>
+      <li>Los filtros siguen siendo exigentes</li>
+    </ul>
+  </div>
+{% endif %}
 
-    <div class="main-nav">
-        <div class="nav-title">Small Cap Tool</div>
-        {{ main_menu_html|safe }}
-    </div>
+<table>
+  <tr>
+    <th>Symbol</th>
+    <th>Name</th>
+    <th>Price</th>
+    <th>% Day</th>
+    <th>Float</th>
+    <th>Vol</th>
+    <th>Avg Vol</th>
+    <th>RVOL</th>
+    <th>1m</th>
+    <th>5m</th>
+    <th>10m</th>
+    <th>Score</th>
+  </tr>
 
-    <div class="main-content">
-        <div class="card">
-            <h2>Momentum Scanner</h2>
-
-            <table class="screener-table">
-                <thead>
-                    <tr>
-                        <th>Ticker</th>
-                        <th>Precio</th>
-                        <th>% 1m</th>
-                        <th>% 5m</th>
-                        <th>Volumen</th>
-                    </tr>
-                </thead>
-                <tbody id="momentum-body"></tbody>
-            </table>
-        </div>
-    </div>
-</div>
-
-<script>
-function getMomentumColor(value) {
-    const v = Number(value);
-    if (isNaN(v)) return "#cbd5e1";
-    if (v >= 5) return "#22c55e";
-    if (v > 0) return "#86efac";
-    if (v <= -5) return "#ff4d4f";
-    if (v < 0) return "#fca5a5";
-    return "#cbd5e1";
-}
-
-function formatPrice(value) {
-    const n = Number(value);
-    if (isNaN(n)) return "-";
-    return n.toFixed(2);
-}
-
-function formatPercent(value) {
-    const n = Number(value);
-    if (isNaN(n)) return "-";
-    return `${n.toFixed(2)}%`;
-}
-
-function formatVolume(value) {
-    const n = Number(value);
-    if (isNaN(n)) return "-";
-    return n.toLocaleString("es-ES");
-}
-
-async function loadMomentum() {
-    try {
-        const res = await fetch("/api/momentum");
-        const data = await res.json();
-
-        const tbody = document.getElementById("momentum-body");
-        tbody.innerHTML = "";
-
-        data.forEach(row => {
-            const tr = document.createElement("tr");
-
-            tr.innerHTML = `
-                <td>
-                    <a href="/?ticker=${row.symbol}" class="ticker-link">
-                        ${row.symbol ?? "-"}
-                    </a>
-                </td>
-                <td>${formatPrice(row.price)}</td>
-                <td style="color: ${getMomentumColor(row.change_1m)}; font-weight: 700;">
-                    ${formatPercent(row.change_1m)}
-                </td>
-                <td style="color: ${getMomentumColor(row.change_5m)}; font-weight: 700;">
-                    ${formatPercent(row.change_5m)}
-                </td>
-                <td>${formatVolume(row.volume)}</td>
-            `;
-
-            tbody.appendChild(tr);
-        });
-
-    } catch (err) {
-        console.error("Error cargando momentum:", err);
-    }
-}
-
-loadMomentum();
-setInterval(loadMomentum, 10000);
-</script>
-
-</body>
-</html>
+  {% for row in data %}
+  <tr>
+    <td>
+  <a href="/?ticker={{ row.symbol }}">
+    {{ row.symbol }}
+  </a>
+</td>
+    <td>{{ row.name }}</td>
+    <td>{{ row.price }}</td>
+    <td style="
+  color: {% if row.pct_day > 50 %}#ff4d4d{% elif row.pct_day > 20 %}#ffa500{% else %}#00ff88{% endif %};
+  font-weight: bold;
+">
+  {{ row.pct_day }}%
+</td>
+    <td>{{ row.float }}</td>
+    <td>{{ row.volume }}</td>
+    <td>{{ row.avg_volume }}</td>
+    <td>{{ row.rvol }}</td>
+    <td>{{ row.change_1m }}</td>
+    <td>{{ row.change_5m }}</td>
+    <td>{{ row.change_10m }}</td>
+    <td>{{ row.momentum_score }}</td>
+  </tr>
+  {% endfor %}
+</table>
