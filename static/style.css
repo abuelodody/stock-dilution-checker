@@ -763,3 +763,31 @@ button {
 .combo-table td .heat-cell{
     margin:0;
 }
+
+.grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.card {
+    background: #121a2b;
+    border-radius: 12px;
+    padding: 12px;
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.page-title {
+    font-size: 26px;
+    font-weight: bold;
+}
+
+.subtitle {
+    color: #94a3b8;
+    margin-bottom: 15px;
+}
