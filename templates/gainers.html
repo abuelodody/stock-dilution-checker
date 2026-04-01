@@ -6,101 +6,122 @@
     <title>Gainers & Momentum PRO</title>
     <style>
         :root {
-            --bg: #0b1020;
-            --panel: #121a2b;
-            --panel-2: #182235;
-            --border: #26324a;
-            --text: #e8eefc;
-            --muted: #94a3b8;
-            --accent: #3b82f6;
-            --gold: #facc15;
-            --silver: #cbd5e1;
-            --bronze: #d97706;
-            --green: 34,197,94;
-            --red: 239,68,68;
+            --bg: #071225;
+            --bg2: #0b1730;
+            --panel: #121d35;
+            --panel-2: #18243d;
+            --border: rgba(120, 150, 220, 0.18);
+            --text: #eef4ff;
+            --muted: #98a8c7;
+            --blue: #2f6df6;
         }
 
         * {
             box-sizing: border-box;
         }
 
-        body {
+        html, body {
             margin: 0;
+            padding: 0;
             font-family: Arial, Helvetica, sans-serif;
-            background: linear-gradient(180deg, #08101d 0%, #0f172a 100%);
+            background:
+                radial-gradient(circle at top left, rgba(33, 85, 255, 0.18), transparent 30%),
+                radial-gradient(circle at top right, rgba(118, 0, 255, 0.10), transparent 25%),
+                linear-gradient(180deg, #04101f 0%, #071427 100%);
             color: var(--text);
         }
 
-        .container {
-            max-width: 1500px;
-            margin: 0 auto;
-            padding: 24px;
+        .app-shell {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            width: 270px;
+            min-width: 270px;
+            background: rgba(3, 14, 31, 0.92);
+            border-right: 1px solid rgba(255,255,255,0.08);
+            padding: 22px 18px;
+        }
+
+        .brand {
+            font-size: 26px;
+            font-weight: 800;
+            margin-bottom: 26px;
+            color: #ffffff;
+        }
+
+        .main-content {
+            flex: 1;
+            padding: 26px 30px 40px 30px;
+            min-width: 0;
         }
 
         .page-title {
-            font-size: 28px;
-            font-weight: 700;
+            font-size: 38px;
+            font-weight: 800;
             margin-bottom: 8px;
         }
 
         .subtitle {
             color: var(--muted);
-            margin-bottom: 22px;
+            font-size: 18px;
+            margin-bottom: 26px;
         }
 
         .toolbar {
             display: flex;
             gap: 12px;
             flex-wrap: wrap;
-            align-items: center;
-            margin-bottom: 20px;
+            margin-bottom: 24px;
         }
 
         .toolbar button {
-            background: var(--panel-2);
-            color: var(--text);
-            border: 1px solid var(--border);
-            padding: 10px 14px;
-            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.08);
+            background: #1b2742;
+            color: #fff;
+            padding: 12px 18px;
+            border-radius: 14px;
             cursor: pointer;
-            font-weight: 600;
+            font-size: 16px;
+            font-weight: 700;
         }
 
         .toolbar button:hover {
-            border-color: var(--accent);
+            background: #223252;
         }
 
         .grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 18px;
+            gap: 20px;
+            margin-bottom: 26px;
         }
 
         .card {
-            background: rgba(18, 26, 43, 0.95);
+            background: rgba(16, 28, 52, 0.95);
             border: 1px solid var(--border);
-            border-radius: 18px;
+            border-radius: 24px;
             overflow: hidden;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.22);
         }
 
         .card-header {
-            padding: 16px 18px;
-            border-bottom: 1px solid var(--border);
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: rgba(255,255,255,0.02);
+            padding: 22px 22px 16px 22px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
         }
 
         .card-header h2 {
             margin: 0;
-            font-size: 18px;
+            font-size: 26px;
         }
 
         .status {
             color: var(--muted);
-            font-size: 13px;
+            font-size: 16px;
         }
 
         .table-wrap {
@@ -113,204 +134,224 @@
             min-width: 760px;
         }
 
-        thead {
-            background: rgba(255,255,255,0.03);
-        }
-
         th, td {
-            padding: 12px 12px;
+            padding: 18px 14px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
             text-align: left;
-            border-bottom: 1px solid rgba(255,255,255,0.05);
-            font-size: 14px;
-            white-space: nowrap;
+            font-size: 16px;
         }
 
         th {
-            color: #cbd5e1;
-            font-size: 13px;
+            color: #c7d2e8;
+            font-weight: 800;
             text-transform: uppercase;
-            letter-spacing: 0.4px;
-        }
-
-        tbody tr {
-            transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
         }
 
         tbody tr:hover {
             background: rgba(255,255,255,0.03);
-            transform: scale(1.003);
         }
 
         .rank-badge {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-width: 38px;
-            padding: 6px 10px;
+            display: inline-block;
+            min-width: 46px;
+            text-align: center;
+            padding: 8px 12px;
             border-radius: 999px;
-            font-weight: 700;
-            font-size: 13px;
-            border: 1px solid rgba(255,255,255,0.08);
+            font-weight: 800;
+            border: 1px solid rgba(255,255,255,0.12);
             background: rgba(255,255,255,0.04);
         }
 
         .rank-1 {
-            background: rgba(250, 204, 21, 0.18);
-            color: #fde68a;
-            border-color: rgba(250, 204, 21, 0.4);
+            background: rgba(250, 204, 21, 0.14);
+            color: #ffe28a;
+            border-color: rgba(250, 204, 21, 0.35);
         }
 
         .rank-2 {
-            background: rgba(203, 213, 225, 0.15);
-            color: #e2e8f0;
-            border-color: rgba(203, 213, 225, 0.35);
+            background: rgba(203, 213, 225, 0.12);
+            color: #e6edf7;
+            border-color: rgba(203, 213, 225, 0.28);
         }
 
         .rank-3 {
-            background: rgba(217, 119, 6, 0.18);
-            color: #fdba74;
+            background: rgba(217, 119, 6, 0.16);
+            color: #ffbf7d;
             border-color: rgba(217, 119, 6, 0.35);
         }
 
         .top-row {
-            position: relative;
-            background: linear-gradient(90deg, rgba(59,130,246,0.10), rgba(34,197,94,0.10));
-            box-shadow: inset 0 0 0 1px rgba(59,130,246,0.25);
-        }
-
-        .top-row td {
-            font-weight: 600;
+            background: linear-gradient(90deg, rgba(70,130,255,0.10), rgba(30,180,120,0.10));
         }
 
         .ticker {
-            font-weight: 700;
-            color: #ffffff;
+            font-weight: 800;
+            font-size: 18px;
         }
 
         .company {
             color: var(--muted);
-            font-size: 12px;
+            font-size: 13px;
+            margin-top: 3px;
         }
 
         .pct-pill {
             display: inline-block;
-            min-width: 84px;
+            min-width: 95px;
             text-align: center;
-            font-weight: 700;
-            padding: 7px 10px;
-            border-radius: 10px;
-            border: 1px solid rgba(255,255,255,0.08);
+            padding: 10px 12px;
+            border-radius: 14px;
+            font-weight: 800;
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.1);
         }
 
         .score-pill {
             display: inline-block;
-            min-width: 62px;
+            min-width: 72px;
             text-align: center;
-            font-weight: 700;
-            padding: 6px 10px;
-            border-radius: 10px;
-            background: rgba(59,130,246,0.12);
-            color: #bfdbfe;
-            border: 1px solid rgba(59,130,246,0.25);
-        }
-
-        .muted {
-            color: var(--muted);
+            padding: 10px 12px;
+            border-radius: 14px;
+            font-weight: 800;
+            color: #beddff;
+            background: rgba(33, 116, 255, 0.10);
+            border: 1px solid rgba(33, 116, 255, 0.25);
         }
 
         .tv-box {
-            margin-top: 22px;
-            background: rgba(18, 26, 43, 0.95);
+            background: rgba(16, 28, 52, 0.95);
             border: 1px solid var(--border);
-            border-radius: 18px;
-            padding: 14px;
+            border-radius: 24px;
             overflow: hidden;
         }
 
         .tv-title {
-            font-size: 18px;
-            font-weight: 700;
-            margin-bottom: 10px;
+            font-size: 22px;
+            font-weight: 800;
+            padding: 18px 22px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            background: rgba(255,255,255,0.02);
         }
 
-        .loading,
-        .empty,
-        .error {
-            padding: 18px;
+        .loading, .error, .empty {
             color: var(--muted);
         }
 
-        @media (max-width: 1100px) {
+        .main-nav-link {
+            display: block;
+            text-decoration: none;
+            color: #eaf1ff;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.04);
+            padding: 18px 18px;
+            border-radius: 18px;
+            margin-bottom: 12px;
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .main-nav-active {
+            background: #2f6df6;
+            color: white;
+            box-shadow: 0 0 22px rgba(47,109,246,0.30);
+        }
+
+        @media (max-width: 1200px) {
             .grid {
                 grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 980px) {
+            .app-shell {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                min-width: 100%;
+                border-right: none;
+                border-bottom: 1px solid rgba(255,255,255,0.08);
+            }
+
+            .page-title {
+                font-size: 30px;
             }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="page-title">Gainers & Momentum PRO</div>
-<div class="subtitle">Ranking visual, intensidad de color, top highlight y score dinámico</div>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div class="brand">Small Cap Tool</div>
+            {{ main_menu_html|safe }}
+        </aside>
 
-<div class="toolbar">
-    <button onclick="loadAllData()">Actualizar</button>
-    <button onclick="toggleScore()">Mostrar/Ocultar Score</button>
-</div>
+        <main class="main-content">
+            <div class="page-title">Gainers & Momentum PRO</div>
+            <div class="subtitle">Ranking visual, intensidad de color, top highlight y score dinámico</div>
 
-<div class="grid">
-    <!-- GAINERS -->
-    <div class="card">
-        <div class="card-header">
-            <h2>Top Gainers</h2>
-            <div id="gainers-status" class="status">Cargando...</div>
-        </div>
+            <div class="toolbar">
+                <button onclick="loadAllData()">Actualizar</button>
+                <button onclick="toggleScore()">Mostrar/Ocultar Score</button>
+            </div>
 
-        <table>
-            <thead>
-                <tr>
-                    <th>Rank</th>
-                    <th>Ticker</th>
-                    <th>Precio</th>
-                    <th>%</th>
-                    <th>Volumen</th>
-                    <th class="score-col">Score</th>
-                </tr>
-            </thead>
-            <tbody id="gainers-body">
-                <tr><td colspan="6">Cargando gainers...</td></tr>
-            </tbody>
-        </table>
+            <div class="grid">
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Top Gainers</h2>
+                        <div id="gainers-status" class="status">Cargando...</div>
+                    </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>Ticker</th>
+                                    <th>Precio</th>
+                                    <th>%</th>
+                                    <th>Volumen</th>
+                                    <th class="score-col">Score</th>
+                                </tr>
+                            </thead>
+                            <tbody id="gainers-body">
+                                <tr><td colspan="6" class="loading">Cargando gainers...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Momentum</h2>
+                        <div id="momentum-status" class="status">Cargando...</div>
+                    </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>Ticker</th>
+                                    <th>Precio</th>
+                                    <th>%</th>
+                                    <th>Volumen</th>
+                                    <th class="score-col">Score</th>
+                                </tr>
+                            </thead>
+                            <tbody id="momentum-body">
+                                <tr><td colspan="6" class="loading">Cargando momentum...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tv-box">
+                <div class="tv-title">TradingView</div>
+                <div id="tradingview_chart" style="height: 520px;"></div>
+            </div>
+        </main>
     </div>
-
-    <!-- MOMENTUM -->
-    <div class="card">
-        <div class="card-header">
-            <h2>Momentum</h2>
-            <div id="momentum-status" class="status">Cargando...</div>
-        </div>
-
-        <table>
-            <thead>
-                <tr>
-                    <th>Rank</th>
-                    <th>Ticker</th>
-                    <th>Precio</th>
-                    <th>%</th>
-                    <th>Volumen</th>
-                    <th class="score-col">Score</th>
-                </tr>
-            </thead>
-            <tbody id="momentum-body">
-                <tr><td colspan="6">Cargando momentum...</td></tr>
-            </tbody>
-        </table>
-    </div>
-</div>
-
-<div class="tv-box">
-    <div class="tv-title">TradingView</div>
-    <div id="tradingview_chart" style="height:500px;"></div>
-</div>
 
     <script src="https://s3.tradingview.com/tv.js"></script>
     <script>
@@ -341,39 +382,21 @@
 
         function percentToBg(percent) {
             const p = Number(percent || 0);
-
-            if (p >= 0) {
-                const alpha = Math.min(0.18 + (Math.abs(p) / 50), 0.85);
-                return `rgba(34,197,94,${alpha})`;
-            } else {
-                const alpha = Math.min(0.18 + (Math.abs(p) / 50), 0.85);
-                return `rgba(239,68,68,${alpha})`;
-            }
+            const alpha = Math.min(0.18 + (Math.abs(p) / 50), 0.85);
+            return p >= 0 ? `rgba(34,197,94,${alpha})` : `rgba(239,68,68,${alpha})`;
         }
 
         function percentToBorder(percent) {
             const p = Number(percent || 0);
-
-            if (p >= 0) {
-                const alpha = Math.min(0.25 + (Math.abs(p) / 60), 0.95);
-                return `rgba(34,197,94,${alpha})`;
-            } else {
-                const alpha = Math.min(0.25 + (Math.abs(p) / 60), 0.95);
-                return `rgba(239,68,68,${alpha})`;
-            }
+            const alpha = Math.min(0.25 + (Math.abs(p) / 60), 0.95);
+            return p >= 0 ? `rgba(34,197,94,${alpha})` : `rgba(239,68,68,${alpha})`;
         }
 
         function computeScore(item) {
             const pct = Number(item.change_percent || 0);
             const volume = Number(item.volume || 0);
-
-            // score simple y útil:
-            // 70% peso al movimiento %
-            // 30% peso al volumen relativo escalado
             const volumeFactor = volume > 0 ? Math.log10(volume + 1) * 10 : 0;
-            const score = (pct * 0.7) + (volumeFactor * 0.3);
-
-            return score.toFixed(1);
+            return ((pct * 0.7) + (volumeFactor * 0.3)).toFixed(1);
         }
 
         function normalizeItem(item) {
@@ -382,7 +405,8 @@
                 company: item.company || item.companyName || "",
                 price: item.price ?? item.last_price ?? null,
                 change_percent: item.change_percent ?? item.percent_change ?? item.changePct ?? 0,
-                volume: item.volume ?? item.current_volume ?? 0
+                volume: item.volume ?? item.current_volume ?? 0,
+                score: item.score
             };
         }
 
@@ -399,24 +423,21 @@
             const normalized = items.map(normalizeItem);
 
             tbody.innerHTML = normalized.map((item, index) => {
-                const rank = index + 1;
-                const score = computeScore(item);
+                const rank = item.rank || (index + 1);
+                const score = item.score !== undefined ? item.score : computeScore(item);
                 const pctBg = percentToBg(item.change_percent);
                 const pctBorder = percentToBorder(item.change_percent);
 
                 return `
                     <tr class="${rank === 1 ? 'top-row' : ''}">
-                        <td>
-                            <span class="rank-badge ${getRankClass(rank)}">#${rank}</span>
-                        </td>
+                        <td><span class="rank-badge ${getRankClass(rank)}">#${rank}</span></td>
                         <td>
                             <div class="ticker">${item.symbol}</div>
                             <div class="company">${item.company || ""}</div>
                         </td>
                         <td>${formatPrice(item.price)}</td>
                         <td>
-                            <span class="pct-pill"
-                                  style="background:${pctBg}; border-color:${pctBorder}; color:white;">
+                            <span class="pct-pill" style="background:${pctBg}; border-color:${pctBorder};">
                                 ${formatPercent(item.change_percent)}
                             </span>
                         </td>
@@ -472,7 +493,7 @@
             if (typeof TradingView !== "undefined") {
                 new TradingView.widget({
                     "autosize": true,
-                    "symbol": "AMEX:SPY",
+                    "symbol": "{{ chart_symbol or 'AMEX:SPY' }}",
                     "interval": "15",
                     "timezone": "Europe/Madrid",
                     "theme": "dark",
@@ -480,7 +501,7 @@
                     "locale": "es",
                     "toolbar_bg": "#0f172a",
                     "enable_publishing": false,
-                    "hide_side_toolbar": false,
+                    "hide_top_toolbar": false,
                     "allow_symbol_change": true,
                     "container_id": "tradingview_chart"
                 });
@@ -489,7 +510,6 @@
 
         loadAllData();
         initTradingView();
-
         setInterval(loadAllData, 60000);
     </script>
 </body>
