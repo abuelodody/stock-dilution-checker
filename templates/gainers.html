@@ -250,70 +250,67 @@
 <body>
     <div class="container">
         <div class="page-title">Gainers & Momentum PRO</div>
-        <div class="subtitle">Ranking visual, intensidad de color, top highlight y score dinámico</div>
+<div class="subtitle">Ranking visual, intensidad de color, top highlight y score dinámico</div>
 
-        <div class="toolbar">
-            <button onclick="loadAllData()">Actualizar</button>
-            <button onclick="toggleScore()">Mostrar/Ocultar Score</button>
+<div class="toolbar">
+    <button onclick="loadAllData()">Actualizar</button>
+    <button onclick="toggleScore()">Mostrar/Ocultar Score</button>
+</div>
+
+<div class="grid">
+    <!-- GAINERS -->
+    <div class="card">
+        <div class="card-header">
+            <h2>Top Gainers</h2>
+            <div id="gainers-status" class="status">Cargando...</div>
         </div>
 
-        <div class="grid">
-            <div class="card">
-                <div class="card-header">
-                    <h2>Top Gainers</h2>
-                    <div id="gainers-status" class="status">Cargando...</div>
-                </div>
-                <div class="table-wrap">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Rank</th>
-                                <th>Ticker</th>
-                                <th>Precio</th>
-                                <th>%</th>
-                                <th>Volumen</th>
-                                <th class="score-col">Score</th>
-                            </tr>
-                        </thead>
-                        <tbody id="gainers-body">
-                            <tr><td colspan="6" class="loading">Cargando gainers...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <div class="card">
-                <div class="card-header">
-                    <h2>Momentum</h2>
-                    <div id="momentum-status" class="status">Cargando...</div>
-                </div>
-                <div class="table-wrap">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Rank</th>
-                                <th>Ticker</th>
-                                <th>Precio</th>
-                                <th>%</th>
-                                <th>Volumen</th>
-                                <th class="score-col">Score</th>
-                            </tr>
-                        </thead>
-                        <tbody id="momentum-body">
-                            <tr><td colspan="6" class="loading">Cargando momentum...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <div class="tv-box">
-            <div class="tv-title">TradingView</div>
-            <div class="tradingview-widget-container">
-                <div id="tradingview_chart" style="height: 520px;"></div>
-            </div>
-        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Rank</th>
+                    <th>Ticker</th>
+                    <th>Precio</th>
+                    <th>%</th>
+                    <th>Volumen</th>
+                    <th class="score-col">Score</th>
+                </tr>
+            </thead>
+            <tbody id="gainers-body">
+                <tr><td colspan="6">Cargando gainers...</td></tr>
+            </tbody>
+        </table>
     </div>
+
+    <!-- MOMENTUM -->
+    <div class="card">
+        <div class="card-header">
+            <h2>Momentum</h2>
+            <div id="momentum-status" class="status">Cargando...</div>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Rank</th>
+                    <th>Ticker</th>
+                    <th>Precio</th>
+                    <th>%</th>
+                    <th>Volumen</th>
+                    <th class="score-col">Score</th>
+                </tr>
+            </thead>
+            <tbody id="momentum-body">
+                <tr><td colspan="6">Cargando momentum...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="tv-box">
+    <div class="tv-title">TradingView</div>
+    <div id="tradingview_chart" style="height:500px;"></div>
+</div>
 
     <script src="https://s3.tradingview.com/tv.js"></script>
     <script>
