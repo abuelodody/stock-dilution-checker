@@ -3,407 +3,497 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gainers</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <title>Gainers & Momentum PRO</title>
     <style>
-        :root{
-            --bg:#0b1020;
-            --card:#121936;
-            --card-2:#0f1630;
-            --border:#232c57;
-            --text:#e8ecff;
-            --muted:#9aa4d1;
-            --green:#23d18b;
-            --red:#ff5c7a;
-            --yellow:#f7c948;
-            --blue:#7aa2ff;
+        :root {
+            --bg: #0b1020;
+            --panel: #121a2b;
+            --panel-2: #182235;
+            --border: #26324a;
+            --text: #e8eefc;
+            --muted: #94a3b8;
+            --accent: #3b82f6;
+            --gold: #facc15;
+            --silver: #cbd5e1;
+            --bronze: #d97706;
+            --green: 34,197,94;
+            --red: 239,68,68;
         }
 
-        .combo-wrap{
-            display:flex;
-            flex-direction:column;
-            gap:18px;
+        * {
+            box-sizing: border-box;
         }
 
-        .top-panels{
-            display:grid;
-            grid-template-columns:1fr 1fr;
-            gap:16px;
+        body {
+            margin: 0;
+            font-family: Arial, Helvetica, sans-serif;
+            background: linear-gradient(180deg, #08101d 0%, #0f172a 100%);
+            color: var(--text);
         }
 
-        .panel{
-            background:linear-gradient(180deg, var(--card), var(--card-2));
-            border:1px solid var(--border);
-            border-radius:18px;
-            overflow:hidden;
-            box-shadow:0 8px 24px rgba(0,0,0,0.25);
+        .container {
+            max-width: 1500px;
+            margin: 0 auto;
+            padding: 24px;
         }
 
-        .panel-header{
-            display:flex;
-            align-items:center;
-            justify-content:space-between;
-            padding:14px 16px;
-            border-bottom:1px solid rgba(255,255,255,0.06);
+        .page-title {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 8px;
         }
 
-        .panel-title{
-            font-size:16px;
-            font-weight:700;
-            color:var(--text);
+        .subtitle {
+            color: var(--muted);
+            margin-bottom: 22px;
         }
 
-        .panel-subtitle{
-            font-size:12px;
-            color:var(--muted);
-            margin-top:2px;
+        .toolbar {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+            margin-bottom: 20px;
         }
 
-        .table-wrap{
-            overflow:auto;
-            max-height:430px;
+        .toolbar button {
+            background: var(--panel-2);
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 10px 14px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
         }
 
-        .combo-table{
-            width:100%;
-            border-collapse:collapse;
-            min-width:680px;
+        .toolbar button:hover {
+            border-color: var(--accent);
         }
 
-        .combo-table thead th{
-            position:sticky;
-            top:0;
-            z-index:2;
-            background:#141c3d;
-            color:#d7defd;
-            font-size:12px;
-            text-align:left;
-            padding:10px 12px;
-            border-bottom:1px solid rgba(255,255,255,0.08);
-            white-space:nowrap;
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px;
         }
 
-        .combo-table tbody td{
-            padding:10px 12px;
-            border-bottom:1px solid rgba(255,255,255,0.06);
-            font-size:13px;
-            color:#e8ecff;
-            white-space:nowrap;
-            vertical-align:middle;
+        .card {
+            background: rgba(18, 26, 43, 0.95);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            overflow: hidden;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.25);
         }
 
-        .combo-table tbody tr:hover{
-            background:rgba(255,255,255,0.04);
+        .card-header {
+            padding: 16px 18px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255,255,255,0.02);
         }
 
-        .green{ color:var(--green); font-weight:700; }
-        .red{ color:var(--red); font-weight:700; }
-        .yellow{ color:var(--yellow); font-weight:700; }
-        .muted{ color:var(--muted); }
-
-        .symbol-cell a{
-            color:#ffffff;
-            text-decoration:none;
-            font-weight:700;
+        .card-header h2 {
+            margin: 0;
+            font-size: 18px;
         }
 
-        .heat-cell{
-            font-weight:700;
-            border-radius:8px;
-            padding:6px 10px;
-            display:inline-block;
-            min-width:78px;
-            text-align:center;
+        .status {
+            color: var(--muted);
+            font-size: 13px;
         }
 
-        .heat-cell-wide{
-            min-width:92px;
+        .table-wrap {
+            overflow-x: auto;
         }
 
-        .chart-card{
-            background:linear-gradient(180deg, var(--card), var(--card-2));
-            border:1px solid var(--border);
-            border-radius:18px;
-            overflow:hidden;
-            box-shadow:0 8px 24px rgba(0,0,0,0.25);
-            padding:14px;
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 760px;
         }
 
-        .chart-title{
-            font-size:16px;
-            font-weight:700;
-            margin-bottom:10px;
-            color:var(--text);
+        thead {
+            background: rgba(255,255,255,0.03);
         }
 
-        .tv-box{
-            width:100%;
-            height:520px;
-            border-radius:14px;
-            overflow:hidden;
-            background:#0d1430;
+        th, td {
+            padding: 12px 12px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            font-size: 14px;
+            white-space: nowrap;
         }
 
-        .empty-state{
-            padding:20px;
-            color:var(--muted);
-            font-size:14px;
+        th {
+            color: #cbd5e1;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
         }
 
-        @media (max-width: 1100px){
-            .top-panels{
-                grid-template-columns:1fr;
+        tbody tr {
+            transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        tbody tr:hover {
+            background: rgba(255,255,255,0.03);
+            transform: scale(1.003);
+        }
+
+        .rank-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 38px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            font-weight: 700;
+            font-size: 13px;
+            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(255,255,255,0.04);
+        }
+
+        .rank-1 {
+            background: rgba(250, 204, 21, 0.18);
+            color: #fde68a;
+            border-color: rgba(250, 204, 21, 0.4);
+        }
+
+        .rank-2 {
+            background: rgba(203, 213, 225, 0.15);
+            color: #e2e8f0;
+            border-color: rgba(203, 213, 225, 0.35);
+        }
+
+        .rank-3 {
+            background: rgba(217, 119, 6, 0.18);
+            color: #fdba74;
+            border-color: rgba(217, 119, 6, 0.35);
+        }
+
+        .top-row {
+            position: relative;
+            background: linear-gradient(90deg, rgba(59,130,246,0.10), rgba(34,197,94,0.10));
+            box-shadow: inset 0 0 0 1px rgba(59,130,246,0.25);
+        }
+
+        .top-row td {
+            font-weight: 600;
+        }
+
+        .ticker {
+            font-weight: 700;
+            color: #ffffff;
+        }
+
+        .company {
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .pct-pill {
+            display: inline-block;
+            min-width: 84px;
+            text-align: center;
+            font-weight: 700;
+            padding: 7px 10px;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+
+        .score-pill {
+            display: inline-block;
+            min-width: 62px;
+            text-align: center;
+            font-weight: 700;
+            padding: 6px 10px;
+            border-radius: 10px;
+            background: rgba(59,130,246,0.12);
+            color: #bfdbfe;
+            border: 1px solid rgba(59,130,246,0.25);
+        }
+
+        .muted {
+            color: var(--muted);
+        }
+
+        .tv-box {
+            margin-top: 22px;
+            background: rgba(18, 26, 43, 0.95);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 14px;
+            overflow: hidden;
+        }
+
+        .tv-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .loading,
+        .empty,
+        .error {
+            padding: 18px;
+            color: var(--muted);
+        }
+
+        @media (max-width: 1100px) {
+            .grid {
+                grid-template-columns: 1fr;
             }
         }
     </style>
 </head>
 <body>
+    <div class="container">
+        <div class="page-title">Gainers & Momentum PRO</div>
+        <div class="subtitle">Ranking visual, intensidad de color, top highlight y score dinámico</div>
 
-<div class="app-layout">
+        <div class="toolbar">
+            <button onclick="loadAllData()">Actualizar</button>
+            <button onclick="toggleScore()">Mostrar/Ocultar Score</button>
+        </div>
 
-    <div class="main-nav">
-        <div class="nav-title">Small Cap Tool</div>
-        {{ main_menu_html|safe }}
-    </div>
-
-    <div class="main-content">
-        <div class="combo-wrap">
-
-            <div class="top-panels">
-
-                <div class="panel">
-                    <div class="panel-header">
-                        <div>
-                            <div class="panel-title">High of the day</div>
-                            <div class="panel-subtitle">Gainers</div>
-                        </div>
-                    </div>
-
-                    <div class="table-wrap">
-                        <table class="combo-table">
-                            <thead>
-                                <tr>
-                                    <th>Symbol</th>
-                                    <th>Price</th>
-                                    <th>Change %</th>
-                                    <th>5m</th>
-                                    <th>Float M</th>
-                                    <th>Volume</th>
-                                    <th>RVOL</th>
-                                </tr>
-                            </thead>
-                            <tbody id="gainers-body">
-                                <tr><td colspan="7" class="empty-state">Cargando gainers...</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
+        <div class="grid">
+            <div class="card">
+                <div class="card-header">
+                    <h2>Top Gainers</h2>
+                    <div id="gainers-status" class="status">Cargando...</div>
                 </div>
-
-                <div class="panel">
-                    <div class="panel-header">
-                        <div>
-                            <div class="panel-title">Momentum stocks</div>
-                            <div class="panel-subtitle">Only high</div>
-                        </div>
-                    </div>
-
-                    <div class="table-wrap">
-                        <table class="combo-table">
-                            <thead>
-                                <tr>
-                                    <th>Symbol</th>
-                                    <th>Price</th>
-                                    <th>1m</th>
-                                    <th>5m</th>
-                                    <th>Volume</th>
-                                </tr>
-                            </thead>
-                            <tbody id="momentum-body">
-                                <tr><td colspan="5" class="empty-state">Cargando momentum...</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-            </div>
-
-            <div class="chart-card">
-                <div class="chart-title">SPY Chart</div>
-                <div class="tv-box">
-                    <div class="tradingview-widget-container" style="height:100%;width:100%;">
-                        <div id="tradingview_spy" style="height:100%;width:100%;"></div>
-                    </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>Ticker</th>
+                                <th>Precio</th>
+                                <th>%</th>
+                                <th>Volumen</th>
+                                <th class="score-col">Score</th>
+                            </tr>
+                        </thead>
+                        <tbody id="gainers-body">
+                            <tr><td colspan="6" class="loading">Cargando gainers...</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
+            <div class="card">
+                <div class="card-header">
+                    <h2>Momentum</h2>
+                    <div id="momentum-status" class="status">Cargando...</div>
+                </div>
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>Ticker</th>
+                                <th>Precio</th>
+                                <th>%</th>
+                                <th>Volumen</th>
+                                <th class="score-col">Score</th>
+                            </tr>
+                        </thead>
+                        <tbody id="momentum-body">
+                            <tr><td colspan="6" class="loading">Cargando momentum...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="tv-box">
+            <div class="tv-title">TradingView</div>
+            <div class="tradingview-widget-container">
+                <div id="tradingview_chart" style="height: 520px;"></div>
+            </div>
         </div>
     </div>
 
-</div>
+    <script src="https://s3.tradingview.com/tv.js"></script>
+    <script>
+        let showScore = true;
 
-<script>
-function clamp(value, min, max) {
-    return Math.max(min, Math.min(max, value));
-}
-
-function heatStylePercent(value) {
-    const n = Number(value);
-    if (isNaN(n)) return "color:#9aa4d1;";
-
-    if (n === 0) {
-        return "color:#cbd5e1;background:rgba(148,163,184,0.10);";
-    }
-
-    if (n > 0) {
-        const alpha = clamp(0.12 + (Math.abs(n) / 70) * 0.55, 0.12, 0.70);
-        return `color:#22c55e;background:rgba(34,197,94,${alpha});`;
-    }
-
-    const alpha = clamp(0.12 + (Math.abs(n) / 70) * 0.55, 0.12, 0.70);
-    return `color:#ff5c7a;background:rgba(255,92,122,${alpha});`;
-}
-
-function heatStyleMomentum(value) {
-    const n = Number(value);
-    if (isNaN(n)) return "color:#9aa4d1;";
-
-    if (n === 0) {
-        return "color:#cbd5e1;background:rgba(148,163,184,0.10);";
-    }
-
-    if (n > 0) {
-        const alpha = clamp(0.14 + (Math.abs(n) / 8) * 0.60, 0.14, 0.78);
-        return `color:#22c55e;background:rgba(34,197,94,${alpha});`;
-    }
-
-    const alpha = clamp(0.14 + (Math.abs(n) / 8) * 0.60, 0.14, 0.78);
-    return `color:#ff5c7a;background:rgba(255,92,122,${alpha});`;
-}
-
-function formatPrice(value) {
-    const n = Number(value);
-    if (isNaN(n)) return "-";
-    return n.toFixed(2);
-}
-
-function formatPercent(value) {
-    const n = Number(value);
-    if (isNaN(n)) return "-";
-    return `${n.toFixed(2)}%`;
-}
-
-function formatVolume(value) {
-    const n = Number(value);
-    if (isNaN(n)) return "-";
-    return n.toLocaleString("es-ES");
-}
-
-function formatFloatMillions(value) {
-    const n = Number(value);
-    if (isNaN(n)) return "-";
-    return `${(n / 1000000).toFixed(2)}M`;
-}
-
-function formatRvol(value) {
-    const n = Number(value);
-    if (isNaN(n)) return "-";
-    return n.toFixed(2);
-}
-
-async function loadGainers() {
-    try {
-        const res = await fetch("/api/gainers");
-        const data = await res.json();
-        const tbody = document.getElementById("gainers-body");
-        tbody.innerHTML = "";
-
-        if (!data || !data.length) {
-            tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No hay datos de gainers.</td></tr>';
-            return;
+        function formatNumber(value) {
+            if (value === null || value === undefined || value === "" || isNaN(value)) return "N/A";
+            return Number(value).toLocaleString("es-ES");
         }
 
-        data.forEach(row => {
-            const tr = document.createElement("tr");
-            tr.innerHTML = `
-                <td class="symbol-cell">
-                    <a href="/?ticker=${row.symbol}">${row.symbol ?? "-"}</a>
-                </td>
-                <td>${formatPrice(row.price)}</td>
-                <td><span class="heat-cell heat-cell-wide" style="${heatStylePercent(row.change_pct)}">${formatPercent(row.change_pct)}</span></td>
-                <td><span class="heat-cell" style="${heatStyleMomentum(row.change_5m)}">${formatPercent(row.change_5m)}</span></td>
-                <td class="red">${formatFloatMillions(row.float_shares)}</td>
-                <td class="yellow">${formatVolume(row.volume)}</td>
-                <td class="green">${formatRvol(row.rvol)}</td>
-            `;
-            tbody.appendChild(tr);
-        });
-    } catch (err) {
-        console.error("Error cargando gainers:", err);
-        document.getElementById("gainers-body").innerHTML =
-            '<tr><td colspan="7" class="empty-state">Error cargando gainers.</td></tr>';
-    }
-}
-
-async function loadMomentum() {
-    try {
-        const res = await fetch("/api/momentum");
-        const data = await res.json();
-        const tbody = document.getElementById("momentum-body");
-        tbody.innerHTML = "";
-
-        if (!data || !data.length) {
-            tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No hay datos de momentum.</td></tr>';
-            return;
+        function formatPrice(value) {
+            if (value === null || value === undefined || value === "" || isNaN(value)) return "N/A";
+            return "$" + Number(value).toFixed(2);
         }
 
-        data.forEach(row => {
-            const tr = document.createElement("tr");
-            tr.innerHTML = `
-                <td class="symbol-cell">
-                    <a href="/?ticker=${row.symbol}">${row.symbol ?? "-"}</a>
-                </td>
-                <td>${formatPrice(row.price)}</td>
-                <td><span class="heat-cell" style="${heatStyleMomentum(row.change_1m)}">${formatPercent(row.change_1m)}</span></td>
-                <td><span class="heat-cell" style="${heatStyleMomentum(row.change_5m)}">${formatPercent(row.change_5m)}</span></td>
-                <td class="yellow">${formatVolume(row.volume)}</td>
-            `;
-            tbody.appendChild(tr);
-        });
-    } catch (err) {
-        console.error("Error cargando momentum:", err);
-        document.getElementById("momentum-body").innerHTML =
-            '<tr><td colspan="5" class="empty-state">Error cargando momentum.</td></tr>';
-    }
-}
+        function formatPercent(value) {
+            if (value === null || value === undefined || value === "" || isNaN(value)) return "N/A";
+            const num = Number(value);
+            return `${num >= 0 ? "+" : ""}${num.toFixed(2)}%`;
+        }
 
-loadGainers();
-loadMomentum();
-setInterval(loadGainers, 10000);
-setInterval(loadMomentum, 10000);
-</script>
+        function getRankClass(rank) {
+            if (rank === 1) return "rank-1";
+            if (rank === 2) return "rank-2";
+            if (rank === 3) return "rank-3";
+            return "";
+        }
 
-<script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
-<script>
-new TradingView.widget({
-    container_id: "tradingview_spy",
-    width: "100%",
-    height: "100%",
-    symbol: "{{ chart_symbol or 'AMEX:SPY' }}",
-    interval: "5",
-    timezone: "Europe/Madrid",
-    theme: "dark",
-    style: "1",
-    locale: "es",
-    toolbar_bg: "#0f1630",
-    enable_publishing: false,
-    hide_top_toolbar: false,
-    hide_legend: false,
-    save_image: false,
-    studies: [],
-    withdateranges: true,
-    allow_symbol_change: true
-});
-</script>
+        function percentToBg(percent) {
+            const p = Number(percent || 0);
 
+            if (p >= 0) {
+                const alpha = Math.min(0.18 + (Math.abs(p) / 50), 0.85);
+                return `rgba(34,197,94,${alpha})`;
+            } else {
+                const alpha = Math.min(0.18 + (Math.abs(p) / 50), 0.85);
+                return `rgba(239,68,68,${alpha})`;
+            }
+        }
+
+        function percentToBorder(percent) {
+            const p = Number(percent || 0);
+
+            if (p >= 0) {
+                const alpha = Math.min(0.25 + (Math.abs(p) / 60), 0.95);
+                return `rgba(34,197,94,${alpha})`;
+            } else {
+                const alpha = Math.min(0.25 + (Math.abs(p) / 60), 0.95);
+                return `rgba(239,68,68,${alpha})`;
+            }
+        }
+
+        function computeScore(item) {
+            const pct = Number(item.change_percent || 0);
+            const volume = Number(item.volume || 0);
+
+            // score simple y útil:
+            // 70% peso al movimiento %
+            // 30% peso al volumen relativo escalado
+            const volumeFactor = volume > 0 ? Math.log10(volume + 1) * 10 : 0;
+            const score = (pct * 0.7) + (volumeFactor * 0.3);
+
+            return score.toFixed(1);
+        }
+
+        function normalizeItem(item) {
+            return {
+                symbol: item.symbol || item.ticker || "N/A",
+                company: item.company || item.companyName || "",
+                price: item.price ?? item.last_price ?? null,
+                change_percent: item.change_percent ?? item.percent_change ?? item.changePct ?? 0,
+                volume: item.volume ?? item.current_volume ?? 0
+            };
+        }
+
+        function renderTable(items, tbodyId, statusId) {
+            const tbody = document.getElementById(tbodyId);
+            const status = document.getElementById(statusId);
+
+            if (!items || !items.length) {
+                tbody.innerHTML = `<tr><td colspan="6" class="empty">Sin datos</td></tr>`;
+                status.textContent = "Sin datos";
+                return;
+            }
+
+            const normalized = items.map(normalizeItem);
+
+            tbody.innerHTML = normalized.map((item, index) => {
+                const rank = index + 1;
+                const score = computeScore(item);
+                const pctBg = percentToBg(item.change_percent);
+                const pctBorder = percentToBorder(item.change_percent);
+
+                return `
+                    <tr class="${rank === 1 ? 'top-row' : ''}">
+                        <td>
+                            <span class="rank-badge ${getRankClass(rank)}">#${rank}</span>
+                        </td>
+                        <td>
+                            <div class="ticker">${item.symbol}</div>
+                            <div class="company">${item.company || ""}</div>
+                        </td>
+                        <td>${formatPrice(item.price)}</td>
+                        <td>
+                            <span class="pct-pill"
+                                  style="background:${pctBg}; border-color:${pctBorder}; color:white;">
+                                ${formatPercent(item.change_percent)}
+                            </span>
+                        </td>
+                        <td>${formatNumber(item.volume)}</td>
+                        <td class="score-col"><span class="score-pill">${score}</span></td>
+                    </tr>
+                `;
+            }).join("");
+
+            status.textContent = `Actualizado: ${new Date().toLocaleTimeString("es-ES")}`;
+        }
+
+        async function loadGainers() {
+            const tbody = document.getElementById("gainers-body");
+            tbody.innerHTML = `<tr><td colspan="6" class="loading">Cargando gainers...</td></tr>`;
+
+            try {
+                const res = await fetch("/api/gainers");
+                const data = await res.json();
+                renderTable(Array.isArray(data) ? data : (data.data || []), "gainers-body", "gainers-status");
+            } catch (error) {
+                tbody.innerHTML = `<tr><td colspan="6" class="error">Error cargando gainers</td></tr>`;
+                document.getElementById("gainers-status").textContent = "Error";
+            }
+        }
+
+        async function loadMomentum() {
+            const tbody = document.getElementById("momentum-body");
+            tbody.innerHTML = `<tr><td colspan="6" class="loading">Cargando momentum...</td></tr>`;
+
+            try {
+                const res = await fetch("/api/momentum");
+                const data = await res.json();
+                renderTable(Array.isArray(data) ? data : (data.data || []), "momentum-body", "momentum-status");
+            } catch (error) {
+                tbody.innerHTML = `<tr><td colspan="6" class="error">Error cargando momentum</td></tr>`;
+                document.getElementById("momentum-status").textContent = "Error";
+            }
+        }
+
+        async function loadAllData() {
+            await Promise.all([loadGainers(), loadMomentum()]);
+        }
+
+        function toggleScore() {
+            showScore = !showScore;
+            document.querySelectorAll(".score-col").forEach(el => {
+                el.style.display = showScore ? "" : "none";
+            });
+        }
+
+        function initTradingView() {
+            if (typeof TradingView !== "undefined") {
+                new TradingView.widget({
+                    "autosize": true,
+                    "symbol": "AMEX:SPY",
+                    "interval": "15",
+                    "timezone": "Europe/Madrid",
+                    "theme": "dark",
+                    "style": "1",
+                    "locale": "es",
+                    "toolbar_bg": "#0f172a",
+                    "enable_publishing": false,
+                    "hide_side_toolbar": false,
+                    "allow_symbol_change": true,
+                    "container_id": "tradingview_chart"
+                });
+            }
+        }
+
+        loadAllData();
+        initTradingView();
+
+        setInterval(loadAllData, 60000);
+    </script>
 </body>
 </html>
