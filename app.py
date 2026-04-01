@@ -2,10 +2,10 @@ import sqlite3
 import json
 import os
 import re
+import math
 from datetime import datetime, timedelta
 from html import escape
 
-import sqlite3
 from flask_login import UserMixin
 
 import requests
@@ -167,6 +167,26 @@ def save_note(ticker, note):
 # =========================
 # HELPERS
 # =========================
+def safe_float(v, default=0):
+    try:
+        return float(v)
+    except Exception:
+        return default
+
+
+def safe_int(v, default=0):
+    try:
+        return int(float(v))
+    except Exception:
+        return default
+
+
+def compute_score(item):
+    pct = safe_float(item.get("change_percent", 0))
+    volume = safe_int(item.get("volume", 0))
+    volume_factor = math.log10(volume + 1) * 10 if volume > 0 else 0
+    return round((pct * 0.7) + (volume_factor * 0.3), 1)
+
 def format_market_cap(value):
     if value in [None, "N/A"]:
         return "N/A"
@@ -1840,16 +1860,58 @@ def gap_stats_page():
 @login_required
 def api_gainers():
     data = build_gainers()
-    print("GAINERS DATA:", data)
-    return jsonify(data)
+
+    cleaned = []
+    for x in data:
+        item = {
+            "symbol": x.get("symbol") or x.get("ticker") or "N/A",
+            "company": x.get("company") or x.get("companyName") or "",
+            "price": safe_float(x.get("price", x.get("last_price", 0)), 0),
+            "change_percent": safe_float(
+                x.get("change_percent", x.get("percent_change", x.get("changePct", 0))),
+                0
+            ),
+            "volume": safe_int(x.get("volume", x.get("current_volume", 0)), 0),
+        }
+        item["score"] = compute_score(item)
+        cleaned.append(item)
+
+    cleaned.sort(key=lambda x: x["change_percent"], reverse=True)
+
+    for i, item in enumerate(cleaned, start=1):
+        item["rank"] = i
+
+    print("GAINERS DATA CLEANED:", cleaned)
+    return jsonify(cleaned)
 
 
 @app.route("/api/momentum")
 @login_required
 def api_momentum():
     data = build_momentum()
-    print("MOMENTUM DATA:", data)
-    return jsonify(data)
+
+    cleaned = []
+    for x in data:
+        item = {
+            "symbol": x.get("symbol") or x.get("ticker") or "N/A",
+            "company": x.get("company") or x.get("companyName") or "",
+            "price": safe_float(x.get("price", x.get("last_price", 0)), 0),
+            "change_percent": safe_float(
+                x.get("change_percent", x.get("percent_change", x.get("changePct", 0))),
+                0
+            ),
+            "volume": safe_int(x.get("volume", x.get("current_volume", 0)), 0),
+        }
+        item["score"] = compute_score(item)
+        cleaned.append(item)
+
+    cleaned.sort(key=lambda x: x["score"], reverse=True)
+
+    for i, item in enumerate(cleaned, start=1):
+        item["rank"] = i
+
+    print("MOMENTUM DATA CLEANED:", cleaned)
+    return jsonify(cleaned)
 
 
 @app.route("/scanner")
