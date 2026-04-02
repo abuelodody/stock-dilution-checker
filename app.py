@@ -382,36 +382,29 @@ def get_max_volume_5y(ticker: str):
             "max_volume_5y_date": None,
         }
 
-def calculate_daily_vwap_overhead(ticker: str):
+def calculate_daily_vwap_overhead(ticker: str, period="1y"):
     try:
         stock = yf.Ticker(ticker)
 
-        # 🔥 2 años de datos
-        hist = stock.history(period="2y", interval="1d")
+        hist = stock.history(period=period, interval="1d")
 
         if hist is None or hist.empty:
             return []
 
-        # Precio típico
         hist["tp"] = (hist["High"] + hist["Low"] + hist["Close"]) / 3
-
-        # VWAP acumulado
         hist["cum_vol"] = hist["Volume"].cumsum()
         hist["cum_tp_vol"] = (hist["tp"] * hist["Volume"]).cumsum()
         hist["vwap"] = hist["cum_tp_vol"] / hist["cum_vol"]
 
-        # 🔥 Coger los mayores valores de VWAP
         vwap_values = hist["vwap"].dropna().values
 
         if len(vwap_values) == 0:
             return []
 
-        # Ordenar de mayor a menor
         sorted_vwap = sorted(vwap_values, reverse=True)
 
-        # 🔥 eliminar duplicados cercanos (cluster)
         levels = []
-        threshold = 0.03  # 3%
+        threshold = 0.03
 
         for v in sorted_vwap:
             if not levels:
