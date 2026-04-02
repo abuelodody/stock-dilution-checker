@@ -627,11 +627,11 @@ def get_stock_data(ticker: str):
         except Exception:
             is_record_volume = False
         danger_countries = {
-        "China": "country-danger",
-        "Hong Kong": "country-danger",
-        "Singapore": "country-danger",
-        "Taiwan": "country-danger",
-        "Cayman Islands": "country-danger"
+            "China": "country-danger",
+            "Hong Kong": "country-danger",
+            "Singapore": "country-danger",
+            "Taiwan": "country-danger",
+            "Cayman Islands": "country-danger"
         }
 
         if country == "United States":
@@ -641,9 +641,9 @@ def get_stock_data(ticker: str):
         elif country not in ["N/A", None, ""]:
             country_risk_class = "country-non-us"
         else:
-            country_risk_class = "country-unknown"  
-            
-            return {
+            country_risk_class = "country-unknown"
+
+        return {
             "symbol": ticker,
             "companyName": company_name,
             "price": round(float(last_close), 4),
@@ -667,7 +667,7 @@ def get_stock_data(ticker: str):
             "isRecordVolume": is_record_volume,
             "country": country,
             "businessSummary": business_summary,
-            "countryRiskClass": country_risk_class, 
+            "countryRiskClass": country_risk_class,
         }
 
     except Exception as e:
@@ -1576,6 +1576,7 @@ def render_price_detection(price_detection):
 
 
 def render_summary(data, dilution_result, news, sec_status, price_detection, intraday_data=None):
+
     risk_level = dilution_result["risk_level"]
     badge_class = risk_badge_class(risk_level)
     quick_flags = build_quick_flags(news, sec_status, dilution_result, price_detection)
@@ -1583,6 +1584,10 @@ def render_summary(data, dilution_result, news, sec_status, price_detection, int
     ticker = data["symbol"]
     favorite_text = "★ Remove favorite" if is_favorite(ticker) else "☆ Add favorite"
     note = get_note(ticker)
+
+    company_summary = build_company_summary(data.get("businessSummary", ""))
+    country = data.get("country", "N/A")
+    country_class = data.get("countryRiskClass", "country-unknown")
 
     intraday_price = "N/A"
     intraday_volume = "N/A"
