@@ -200,8 +200,19 @@ body {
 
 .search-row {
     display: flex;
-    gap: 14px;
+    gap: 18px;
     align-items: center;
+}
+
+.search-row input[type="text"] {
+    flex: 1;
+    width: 100%;
+    min-width: 0;
+}
+
+.search-row button {
+    width: 240px;
+    flex: 0 0 240px;
 }
 
 .search-label {
@@ -213,10 +224,10 @@ body {
 }
 
 input[type="text"] {
-    flex: 1;
+    width: 100%;
     min-width: 0;
     padding: 18px 20px;
-    font-size: 30px;
+    font-size: 22px;
     font-weight: 700;
     border-radius: 20px;
     border: 2px solid #22304a;
