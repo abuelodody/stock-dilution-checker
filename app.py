@@ -280,7 +280,16 @@ def format_price(value):
     except Exception:
         return str(value)
 
+def build_company_summary(text, max_chars=300):
+    if not text or text == "N/A":
+        return "No company description available."
 
+    text = re.sub(r"\s+", " ", str(text)).strip()
+
+    if len(text) <= max_chars:
+        return text
+
+    return text[:max_chars].rsplit(" ", 1)[0] + "..."
 def safe_scalar(value):
     try:
         if hasattr(value, "iloc"):
@@ -573,12 +582,15 @@ def get_stock_data(ticker: str):
         market_cap = "N/A"
         sector = "N/A"
         industry = "N/A"
+        country = "N/A"
+        business_summary = "No company description available."
         float_shares = "N/A"
         shares_outstanding = "N/A"
         institutional_ownership = "N/A"
         insider_ownership = "N/A"
         avg_volume = "N/A"
         rvol = "N/A"
+        country_risk_class = "country-us"
 
         try:
             stock = yf.Ticker(ticker)
@@ -593,7 +605,8 @@ def get_stock_data(ticker: str):
             institutional_ownership = info.get("heldPercentInstitutions", "N/A")
             insider_ownership = info.get("heldPercentInsiders", "N/A")
             avg_volume = info.get("averageVolume", "N/A")
-
+            country = info.get("country", "N/A")
+            business_summary = info.get("longBusinessSummary", "No company description available.")
             try:
                 if avg_volume not in [None, "N/A", 0]:
                     rvol = round(float(volume) / float(avg_volume), 2)
@@ -613,8 +626,24 @@ def get_stock_data(ticker: str):
                 is_record_volume = float(volume) > float(max_volume_5y)
         except Exception:
             is_record_volume = False
+        danger_countries = {
+        "China": "country-danger",
+        "Hong Kong": "country-danger",
+        "Singapore": "country-danger",
+        "Taiwan": "country-danger",
+        "Cayman Islands": "country-danger"
+        }
 
-        return {
+        if country == "United States":
+            country_risk_class = "country-us"
+        elif country in danger_countries:
+            country_risk_class = "country-danger"
+        elif country not in ["N/A", None, ""]:
+            country_risk_class = "country-non-us"
+        else:
+            country_risk_class = "country-unknown"  
+            
+            return {
             "symbol": ticker,
             "companyName": company_name,
             "price": round(float(last_close), 4),
@@ -636,6 +665,9 @@ def get_stock_data(ticker: str):
             "maxVolume5YFormatted": format_number(max_volume_5y),
             "maxVolume5YDate": max_volume_5y_date,
             "isRecordVolume": is_record_volume,
+            "country": country,
+            "businessSummary": business_summary,
+            "countryRiskClass": country_risk_class, 
         }
 
     except Exception as e:
@@ -1597,8 +1629,16 @@ def render_summary(data, dilution_result, news, sec_status, price_detection, int
     <div class="hero-card">
         <div class="hero-top">
             <div>
-                <div class="ticker-line">{escape(str(data['symbol']))}</div>
+                <div class="ticker-line">
+                    {escape(str(data['symbol']))}
+                    <span class="country-badge {country_class}">{escape(str(country))}</span>
+                </div>
+
                 <div class="company-line">{escape(str(data['companyName']))}</div>
+
+                <div class="company-summary">
+                    {escape(company_summary)}
+                </div>
             </div>
             <div class="hero-actions">
                 <a class="favorite-btn" href="/toggle_favorite/{escape(ticker)}">{favorite_text}</a>
