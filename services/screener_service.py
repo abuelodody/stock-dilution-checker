@@ -4,7 +4,7 @@ import yfinance as yf
 
 CANDIDATE_SYMBOLS = [
     "TURB", "TMDE", "SELX", "BATL", "TPET", "EONR", "ANNA",
-    "GDXD", "USEG", "RBNE"
+    "GDXD", "USEG", "RBNE", "SKYQ", "DRAM"
 ]
 
 CACHE = {
