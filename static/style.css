@@ -1102,3 +1102,44 @@ button {
         font-size: 40px;
     }
 }
+/* =========================
+   ANALYZER FIX (NO ROMPER NADA)
+========================= */
+
+.analyzer-page {
+    width: 100%;
+}
+
+.analyzer-inner {
+    width: 100%;
+    max-width: 900px;
+}
+
+.search-card {
+    width: 100%;
+}
+
+/* Fila del buscador PERFECTA */
+.search-row {
+    display: flex;
+    gap: 18px;
+    align-items: center;
+    width: 100%;
+}
+
+/* Input grande y usable */
+.search-row input[type="text"] {
+    flex: 1;
+    width: 100%;
+    min-width: 0;
+    font-size: 22px;
+}
+
+/* Botón controlado */
+.search-row button {
+    flex: 0 0 220px;
+    width: 220px;
+    height: 70px;
+    font-size: 18px;
+    border-radius: 18px;
+}
