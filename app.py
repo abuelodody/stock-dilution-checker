@@ -382,7 +382,58 @@ def get_max_volume_5y(ticker: str):
             "max_volume_5y_date": None,
         }
 
+def calculate_daily_vwap_overhead(ticker: str, lookback_days=90):
+    try:
+        stock = yf.Ticker(ticker)
+        hist = stock.history(period=f"{lookback_days}d", interval="1d")
 
+        if hist is None or hist.empty:
+            return []
+
+        # Precio típico
+        hist["tp"] = (hist["High"] + hist["Low"] + hist["Close"]) / 3
+
+        # VWAP acumulado
+        hist["cum_vol"] = hist["Volume"].cumsum()
+        hist["cum_tp_vol"] = (hist["tp"] * hist["Volume"]).cumsum()
+        hist["vwap"] = hist["cum_tp_vol"] / hist["cum_vol"]
+
+        vwap_values = hist["vwap"].values
+
+        peaks = []
+
+        # Detectar picos simples
+        for i in range(2, len(vwap_values) - 2):
+            if (
+                vwap_values[i] > vwap_values[i - 1]
+                and vwap_values[i] > vwap_values[i - 2]
+                and vwap_values[i] > vwap_values[i + 1]
+                and vwap_values[i] > vwap_values[i + 2]
+            ):
+                peaks.append(vwap_values[i])
+
+        if not peaks:
+            return []
+
+        # Agrupar niveles cercanos
+        peaks = sorted(peaks)
+        grouped = []
+
+        threshold = 0.03  # 3% agrupación
+
+        for p in peaks:
+            if not grouped:
+                grouped.append(p)
+            else:
+                if abs(p - grouped[-1]) / grouped[-1] < threshold:
+                    continue
+                grouped.append(p)
+
+        return grouped[::-1][:3]  # top 3 niveles
+
+    except Exception as e:
+        print("ERROR OVERHEAD:", e)
+        return []
 def build_trader_conclusion(dilution_result, sec_status, news, price_detection):
     risk = dilution_result.get("risk_level", "LOW")
     flags = dilution_result.get("flags", [])
