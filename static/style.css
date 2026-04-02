@@ -1226,3 +1226,17 @@ button {
     color: #94a3b8;
     line-height: 1.4;
 }
+.context-box {
+    margin-top: 16px;
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: rgba(59, 130, 246, 0.08);
+    border: 1px solid rgba(59, 130, 246, 0.28);
+}
+
+.context-line {
+    font-size: 13px;
+    color: #cbd5e1;
+    line-height: 1.5;
+    margin-top: 4px;
+}
