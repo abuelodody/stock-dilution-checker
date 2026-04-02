@@ -706,7 +706,7 @@ button {
     background: #223252;
 }
 
-.grid {
+.gainers-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 18px;
@@ -946,6 +946,9 @@ button {
     .hero-actions {
         align-items: stretch;
         width: 100%;
+    }
+    .gainers-grid {
+    grid-template-columns: 1fr;
     }
 }
 
