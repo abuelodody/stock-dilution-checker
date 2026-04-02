@@ -176,10 +176,10 @@ body {
 ========================= */
 
 .main-title {
-    font-size: 56px;
+    font-size: 42px;
     font-weight: 800;
-    margin: 0 0 24px 0;
-    letter-spacing: -1.5px;
+    margin: 0 0 20px 0;
+    letter-spacing: -1px;
     color: #ffffff;
 }
 
@@ -199,20 +199,26 @@ body {
 }
 
 .search-row {
-    display: flex;
-    gap: 18px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 220px;
+    gap: 16px;
     align-items: center;
+    width: 100%;
 }
 
 .search-row input[type="text"] {
-    flex: 1;
     width: 100%;
     min-width: 0;
+    display: block;
 }
 
 .search-row button {
-    width: 240px;
-    flex: 0 0 240px;
+    width: 220px;
+    height: 86px;
+    padding: 0 20px;
+    font-size: 18px;
+    border-radius: 20px;
+    justify-self: stretch;
 }
 
 .search-label {
@@ -227,7 +233,7 @@ input[type="text"] {
     width: 100%;
     min-width: 0;
     padding: 18px 20px;
-    font-size: 22px;
+    font-size: 18px;
     font-weight: 700;
     border-radius: 20px;
     border: 2px solid #22304a;
