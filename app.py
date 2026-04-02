@@ -1696,7 +1696,37 @@ def render_main_menu(active_page="analyzer"):
 
     return html
 
+def render_overhead_block(data, overheads):
+    if not overheads:
+        return ""
 
+    current_price = data.get("price", 0)
+
+    rows = ""
+
+    labels = ["PRIMARY", "SECONDARY", "TERTIARY"]
+    colors = ["overhead-primary", "overhead-secondary", "overhead-tertiary"]
+
+    for i, level in enumerate(overheads):
+        try:
+            distance = ((level - current_price) / current_price) * 100
+        except:
+            distance = 0
+
+        rows += f"""
+        <div class="overhead-row {colors[i]}">
+            <div class="overhead-label">{labels[i]}</div>
+            <div class="overhead-price">{round(level,2)}</div>
+            <div class="overhead-distance">{distance:.1f}%</div>
+        </div>
+        """
+
+    return f"""
+    <div class="overhead-box">
+        <div class="overhead-title">🚧 OVERHEAD LEVELS (VWAP)</div>
+        {rows}
+    </div>
+    """
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if current_user.is_authenticated:
@@ -1805,16 +1835,20 @@ def home():
             sec_status = analyze_sec_offering_status(filings, max_docs_to_scan=6)
             price_detection = detect_price_levels_from_sec(sec_status)
             dilution_result = detect_dilution(data, news, filings or [], sec_status, price_detection)
-
+            
             summary_html = render_summary(data, dilution_result, news, sec_status, price_detection, intraday_data)
             note_box_html = render_note_box(ticker)
             news_html = render_news(news)
             filings_html = render_filings(filings)
             sec_status_html = render_sec_status(sec_status)
             price_detection_html = render_price_detection(price_detection)
-
+            overheads = calculate_daily_vwap_overhead(ticker)
+            overhead_html = render_overhead_block(data, overheads)
+            
             content = f"""
             {summary_html}
+
+            {overhead_html}
 
             {note_box_html}
 
