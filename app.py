@@ -382,10 +382,12 @@ def get_max_volume_5y(ticker: str):
             "max_volume_5y_date": None,
         }
 
-def calculate_daily_vwap_overhead(ticker: str, lookback_days=90):
+def calculate_daily_vwap_overhead(ticker: str):
     try:
         stock = yf.Ticker(ticker)
-        hist = stock.history(period=f"{lookback_days}d", interval="1d")
+
+        # 🔥 2 años de datos
+        hist = stock.history(period="2y", interval="1d")
 
         if hist is None or hist.empty:
             return []
@@ -398,42 +400,35 @@ def calculate_daily_vwap_overhead(ticker: str, lookback_days=90):
         hist["cum_tp_vol"] = (hist["tp"] * hist["Volume"]).cumsum()
         hist["vwap"] = hist["cum_tp_vol"] / hist["cum_vol"]
 
-        vwap_values = hist["vwap"].values
+        # 🔥 Coger los mayores valores de VWAP
+        vwap_values = hist["vwap"].dropna().values
 
-        peaks = []
-
-        # Detectar picos simples
-        for i in range(2, len(vwap_values) - 2):
-            if (
-                vwap_values[i] > vwap_values[i - 1]
-                and vwap_values[i] > vwap_values[i - 2]
-                and vwap_values[i] > vwap_values[i + 1]
-                and vwap_values[i] > vwap_values[i + 2]
-            ):
-                peaks.append(vwap_values[i])
-
-        if not peaks:
+        if len(vwap_values) == 0:
             return []
 
-        # Agrupar niveles cercanos
-        peaks = sorted(peaks)
-        grouped = []
+        # Ordenar de mayor a menor
+        sorted_vwap = sorted(vwap_values, reverse=True)
 
-        threshold = 0.03  # 3% agrupación
+        # 🔥 eliminar duplicados cercanos (cluster)
+        levels = []
+        threshold = 0.03  # 3%
 
-        for p in peaks:
-            if not grouped:
-                grouped.append(p)
+        for v in sorted_vwap:
+            if not levels:
+                levels.append(v)
             else:
-                if abs(p - grouped[-1]) / grouped[-1] < threshold:
-                    continue
-                grouped.append(p)
+                if all(abs(v - x) / x > threshold for x in levels):
+                    levels.append(v)
 
-        return grouped[::-1][:3]  # top 3 niveles
+            if len(levels) >= 3:
+                break
+
+        return levels
 
     except Exception as e:
         print("ERROR OVERHEAD:", e)
         return []
+        
 def build_trader_conclusion(dilution_result, sec_status, news, price_detection):
     risk = dilution_result.get("risk_level", "LOW")
     flags = dilution_result.get("flags", [])
