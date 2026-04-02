@@ -1112,9 +1112,11 @@ button {
 
 .analyzer-inner {
     width: 100%;
-    max-width: 900px;
+    max-width: 1400px;
 }
-
+.analyzer-inner > * {
+    width: 100%;
+}
 .search-card {
     width: 100%;
 }
