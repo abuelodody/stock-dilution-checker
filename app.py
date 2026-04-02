@@ -1589,9 +1589,31 @@ def render_summary(data, dilution_result, news, sec_status, price_detection, int
     country = data.get("country", "N/A")
     country_class = data.get("countryRiskClass", "country-unknown")
 
-    intraday_price = "N/A"
-    intraday_volume = "N/A"
-    intraday_bars = "N/A"
+        context_lines = []
+
+        try:
+            float_shares = data.get("floatShares")
+            if float_shares not in [None, "N/A"] and float(float_shares) < 20_000_000:
+                context_lines.append("Low float stock")
+        except Exception:
+            pass
+        
+        if data.get("countryRiskClass") == "country-danger":
+            context_lines.append("High risk country stock")
+        elif data.get("countryRiskClass") == "country-non-us":
+            context_lines.append("Non-US stock")
+        
+        if dilution_result.get("risk_level") == "HIGH":
+            context_lines.append("High dilution risk")
+        elif dilution_result.get("risk_level") == "MEDIUM":
+            context_lines.append("Medium dilution risk")
+        
+        context_html = ""
+        if context_lines:
+            context_html = "".join(f"<div class='context-line'>• {escape(line)}</div>" for line in context_lines)
+            intraday_price = "N/A"
+            intraday_volume = "N/A"
+            intraday_bars = "N/A"
 
     if intraday_data:
         intraday_price = intraday_data.get("price", "N/A")
@@ -1667,6 +1689,12 @@ def render_summary(data, dilution_result, news, sec_status, price_detection, int
             <div class="subsection-title">Quick trader read</div>
             <div>{escape(conclusion)}</div>
         </div>
+        {f'''
+        <div class="context-box">
+            <div class="subsection-title">Context</div>
+            {context_html}
+        </div>
+        ''' if context_html else ''}    
     </div>
 
     <div class="metrics-grid">
