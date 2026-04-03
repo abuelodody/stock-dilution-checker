@@ -3,10 +3,11 @@ import json
 import os
 import re
 import math
+import csv
+import io
+from flask import render_template
 from datetime import datetime, timedelta
 from html import escape
-
-from flask_login import UserMixin
 
 import requests
 import yfinance as yf
@@ -22,6 +23,37 @@ from services.gap_stats_service import build_gap_stats
 TWELVEDATA_API_KEY = "18ba8881934b4b84b18577fb193d0524"
 
 app = Flask(__name__)
+
+DB_FILE = "database.db"
+
+def get_db():
+    return sqlite3.connect(DB_FILE)
+
+def init_trades_table():
+    conn = get_db()
+    c = conn.cursor()
+
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS trades (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT,
+        symbol TEXT,
+        side TEXT,
+        shares REAL,
+        entry REAL,
+        exit REAL,
+        pnl REAL,
+        fee REAL,
+        setup TEXT,
+        notes TEXT
+    )
+    """)
+
+    conn.commit()
+    conn.close()
+
+# IMPORTANTE: crear tabla al iniciar
+init_trades_table()
 
 app.secret_key = os.environ.get("SECRET_KEY", "dev-key")
 
@@ -118,6 +150,7 @@ def save_storage(data):
     with open(STORAGE_FILE, "w", encoding="utf-8") as f:
         json.dump(safe_data, f, ensure_ascii=False, indent=2)
 
+
 def init_storage():
     if not os.path.exists(STORAGE_FILE):
         save_storage({
@@ -125,6 +158,7 @@ def init_storage():
             "favorites": [],
             "notes": {}
         })
+
 
 def toggle_favorite(ticker):
     storage = load_storage()
@@ -186,6 +220,7 @@ def compute_score(item):
     volume = safe_int(item.get("volume", 0))
     volume_factor = math.log10(volume + 1) * 10 if volume > 0 else 0
     return round((pct * 0.7) + (volume_factor * 0.3), 1)
+
 
 def format_market_cap(value):
     if value in [None, "N/A"]:
@@ -280,6 +315,7 @@ def format_price(value):
     except Exception:
         return str(value)
 
+
 def build_company_summary(text, max_chars=300):
     if not text or text == "N/A":
         return "No company description available."
@@ -290,6 +326,8 @@ def build_company_summary(text, max_chars=300):
         return text
 
     return text[:max_chars].rsplit(" ", 1)[0] + "..."
+
+
 def safe_scalar(value):
     try:
         if hasattr(value, "iloc"):
@@ -391,6 +429,7 @@ def get_max_volume_5y(ticker: str):
             "max_volume_5y_date": None,
         }
 
+
 def calculate_daily_vwap_overhead(ticker: str, period="1y"):
     try:
         stock = yf.Ticker(ticker)
@@ -430,7 +469,8 @@ def calculate_daily_vwap_overhead(ticker: str, period="1y"):
     except Exception as e:
         print("ERROR OVERHEAD:", e)
         return []
-        
+
+
 def build_trader_conclusion(dilution_result, sec_status, news, price_detection):
     risk = dilution_result.get("risk_level", "LOW")
     flags = dilution_result.get("flags", [])
@@ -673,6 +713,7 @@ def get_stock_data(ticker: str):
     except Exception as e:
         return {"error": str(e)}
 
+
 def get_twelvedata_intraday(symbol="AAPL", interval="1min", outputsize=120):
     url = "https://api.twelvedata.com/time_series"
     params = {
@@ -749,6 +790,7 @@ def get_intraday_snapshot(symbol="AAPL"):
         "error": None
     }
 
+
 def get_realtime_price(symbol="AAPL"):
     url = "https://api.twelvedata.com/price"
     params = {
@@ -767,6 +809,7 @@ def get_realtime_price(symbol="AAPL"):
 
     except Exception:
         return "N/A"
+
 
 # =========================
 # FINVIZ NEWS
@@ -1357,6 +1400,7 @@ def render_sidebar(current_ticker=""):
 
     return fav_html
 
+
 def test_twelvedata(symbol="AAPL"):
     url = "https://api.twelvedata.com/time_series"
     params = {
@@ -1372,6 +1416,7 @@ def test_twelvedata(symbol="AAPL"):
         return data
     except Exception as e:
         return {"error": str(e)}
+
 
 def render_note_box(ticker):
     note = get_note(ticker)
@@ -1761,6 +1806,7 @@ def render_main_menu(active_page="analyzer"):
 
     return html
 
+
 def render_overhead_block(data, overheads):
     if not overheads:
         return ""
@@ -1781,7 +1827,7 @@ def render_overhead_block(data, overheads):
         rows += f"""
         <div class="overhead-row {colors[i]}">
             <div class="overhead-label">{labels[i]}</div>
-            <div class="overhead-price">{round(level,2)}</div>
+            <div class="overhead-price">{round(level, 2)}</div>
             <div class="overhead-distance">{distance:.1f}%</div>
         </div>
         """
@@ -1792,6 +1838,8 @@ def render_overhead_block(data, overheads):
         {rows}
     </div>
     """
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if current_user.is_authenticated:
@@ -1819,15 +1867,81 @@ def login():
 
     return render_template("login.html", error=error)
 
+@app.route("/import-trades", methods=["GET", "POST"])
+def import_trades():
+    if request.method == "POST":
+        file = request.files["file"]
+
+        if not file:
+            return "No file uploaded"
+
+        stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
+        reader = csv.DictReader(stream)
+
+        conn = get_db()
+        c = conn.cursor()
+
+        for row in reader:
+            try:
+                symbol = row.get("Symbol", "")
+                side = row.get("Side", "")
+                shares = float(row.get("Shares", 0))
+                entry = float(row.get("Price", 0))
+                exit_price = float(row.get("Exit Price", 0))
+                pnl = float(row.get("P&L", 0))
+
+                c.execute("""
+                    INSERT INTO trades (date, symbol, side, shares, entry, exit, pnl, fee, setup, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    row.get("Date"),
+                    symbol,
+                    side,
+                    shares,
+                    entry,
+                    exit_price,
+                    pnl,
+                    0,
+                    "",
+                    ""
+                ))
+
+            except:
+                continue
+
+        conn.commit()
+        conn.close()
+
+        return redirect(url_for("trade_history"))
+
+    return render_template("import_trades.html")
+
+@app.route("/trade-history")
+def trade_history():
+    conn = get_db()
+    c = conn.cursor()
+
+    trades = c.execute("""
+        SELECT date, symbol, side, shares, entry, exit, pnl
+        FROM trades
+        ORDER BY date DESC
+    """).fetchall()
+
+    conn.close()
+
+    return render_template("trade_history.html", trades=trades)
+
 @app.route("/test")
 def test_api():
     data = test_twelvedata("AAPL")
     return jsonify(data)
 
+
 @app.route("/test_intraday")
 def test_intraday():
     data = get_intraday_snapshot("AAPL")
     return jsonify(data)
+
 
 @app.route("/logout")
 @login_required
@@ -1900,7 +2014,7 @@ def home():
             sec_status = analyze_sec_offering_status(filings, max_docs_to_scan=6)
             price_detection = detect_price_levels_from_sec(sec_status)
             dilution_result = detect_dilution(data, news, filings or [], sec_status, price_detection)
-            
+
             summary_html = render_summary(data, dilution_result, news, sec_status, price_detection, intraday_data)
             note_box_html = render_note_box(ticker)
             news_html = render_news(news)
@@ -1909,7 +2023,7 @@ def home():
             price_detection_html = render_price_detection(price_detection)
             overheads = calculate_daily_vwap_overhead(ticker)
             overhead_html = render_overhead_block(data, overheads)
-            
+
             content = f"""
             {summary_html}
 
