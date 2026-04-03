@@ -1953,17 +1953,19 @@ def trade_history():
     rows = ""
     for t in trades:
         try:
-            pnl = float(t[6])
+            pnl = float(t[6]) if t[6] is not None else 0
         except:
             pnl = 0
 
         color = "#00ff9c" if pnl > 0 else "#ff4d4d"
 
+        side_class = "green" if t[2] == "LONG" else "red"
+
         rows += f"""
         <tr>
             <td>{t[0] or ''}</td>
             <td>{t[1] or ''}</td>
-            <td>{t[2] or ''}</td>
+            <td class="{side_class}">{t[2] or ''}</td>
             <td>{t[3] or ''}</td>
             <td>{t[4] or ''}</td>
             <td>{t[5] or ''}</td>
