@@ -24,8 +24,6 @@ TWELVEDATA_API_KEY = "18ba8881934b4b84b18577fb193d0524"
 
 app = Flask(__name__)
 
-DB_FILE = "database.db"
-
 def get_db():
     return sqlite3.connect(DB_FILE)
 
@@ -52,9 +50,6 @@ def init_trades_table():
     conn.commit()
     conn.close()
 
-# IMPORTANTE: crear tabla al iniciar
-init_trades_table()
-
 app.secret_key = os.environ.get("SECRET_KEY", "dev-key")
 
 login_manager = LoginManager()
@@ -72,7 +67,12 @@ FINVIZ_HEADERS = {
 
 REQUEST_TIMEOUT = 20
 
-PERSISTENT_DIR = os.environ.get("RENDER_DISK_PATH", "/var/data")
+if os.environ.get("RENDER"):
+    PERSISTENT_DIR = os.environ.get("RENDER_DISK_PATH", "/var/data")
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    PERSISTENT_DIR = os.path.join(BASE_DIR, "local_data")
+
 os.makedirs(PERSISTENT_DIR, exist_ok=True)
 
 DB_FILE = os.environ.get("DB_FILE", os.path.join(PERSISTENT_DIR, "app.db"))
@@ -82,6 +82,7 @@ print("🔥 PERSISTENT_DIR =", PERSISTENT_DIR)
 print("🔥 DB_FILE =", DB_FILE)
 print("🔥 STORAGE_FILE =", STORAGE_FILE)
 
+init_trades_table()
 
 # LOGIN SIMPLE
 class User(UserMixin):
