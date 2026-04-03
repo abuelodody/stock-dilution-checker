@@ -5,6 +5,10 @@ import re
 import math
 import csv
 import io
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 from flask import render_template
 from datetime import datetime, timedelta
 from html import escape
@@ -24,8 +28,10 @@ TWELVEDATA_API_KEY = "18ba8881934b4b84b18577fb193d0524"
 
 app = Flask(__name__)
 
+
 def get_db():
     return sqlite3.connect(DB_FILE)
+
 
 def init_trades_table():
     conn = get_db()
@@ -49,6 +55,7 @@ def init_trades_table():
 
     conn.commit()
     conn.close()
+
 
 app.secret_key = os.environ.get("SECRET_KEY", "dev-key")
 
@@ -83,6 +90,7 @@ print("🔥 DB_FILE =", DB_FILE)
 print("🔥 STORAGE_FILE =", STORAGE_FILE)
 
 init_trades_table()
+
 
 # LOGIN SIMPLE
 class User(UserMixin):
@@ -1816,31 +1824,22 @@ def render_overhead_block(data, overheads):
         return ""
 
     current_price = data.get("price", 0)
-
-    total_trades = len(trades)
-
-    wins = [float(t[6]) for t in trades if t[6] and float(t[6]) > 0]
-    losses = [float(t[6]) for t in trades if t[6] and float(t[6]) < 0]
-
-    win_rate = (len(wins) / total_trades * 100) if total_trades else 0
-    total_pnl = sum([float(t[6]) for t in trades if t[6]])
-
     rows = ""
 
     labels = ["PRIMARY", "SECONDARY", "TERTIARY"]
     colors = ["overhead-primary", "overhead-secondary", "overhead-tertiary"]
 
-    for i, level in enumerate(overheads):
+    for i, level in enumerate(overheads[:3]):
         try:
-            distance = ((level - current_price) / current_price) * 100
-        except:
+            distance = ((level - current_price) / current_price) * 100 if current_price else 0
+        except Exception:
             distance = 0
 
         rows += f"""
         <div class="overhead-row {colors[i]}">
             <div class="overhead-label">{labels[i]}</div>
             <div class="overhead-price">{round(level, 2)}</div>
-            <div class="overhead-distance">{distance:.1f}%</div>
+            <div class="overhead-distance">{distance:+.1f}%</div>
         </div>
         """
 
@@ -1850,6 +1849,270 @@ def render_overhead_block(data, overheads):
         {rows}
     </div>
     """
+
+def parse_zimtra_trades_from_rows(rows):
+    from datetime import datetime
+
+    def clean_number(val):
+        if val is None:
+            return 0.0
+        val = str(val).strip()
+        if val == "":
+            return 0.0
+
+        val = val.replace("\ufeff", "").replace(",", ".").strip()
+
+        if val.startswith("(") and val.endswith(")"):
+            val = "-" + val[1:-1]
+
+        try:
+            return float(val)
+        except Exception:
+            return 0.0
+
+    def clean_text(val):
+        return str(val or "").replace("\ufeff", "").strip()
+
+    def parse_dt(val):
+        val = clean_text(val)
+        return datetime.strptime(val, "%m/%d/%y %H:%M:%S")
+
+    rows = list(rows)
+
+    cleaned_rows = []
+    for row in rows:
+        fixed = {}
+        for k, v in row.items():
+            fixed[clean_text(k)] = v
+        cleaned_rows.append(fixed)
+
+    rows = cleaned_rows
+
+    if not rows:
+        return []
+
+    required_cols = ["Date/Time", "B/S", "Qty", "Symbol", "Price"]
+    missing = [col for col in required_cols if col not in rows[0]]
+    if missing:
+        raise ValueError(f"Faltan columnas en el CSV: {', '.join(missing)}")
+
+    rows = sorted(rows, key=lambda x: parse_dt(x["Date/Time"]))
+
+    trades = []
+    positions = {}
+
+    for row in rows:
+        symbol = clean_text(row.get("Symbol")).upper()
+        side = clean_text(row.get("B/S")).upper()
+        qty = int(clean_number(row.get("Qty")))
+        price = clean_number(row.get("Price"))
+        dt_text = clean_text(row.get("Date/Time"))
+
+        if not symbol or qty <= 0:
+            continue
+
+        fee = sum([
+            clean_number(row.get("Comm")),
+            clean_number(row.get("Ecn Fee")),
+            clean_number(row.get("SEC")),
+            clean_number(row.get("TAF")),
+            clean_number(row.get("NSCC")),
+            clean_number(row.get("Clr")),
+            clean_number(row.get("CAT")),
+            clean_number(row.get("Misc")),
+        ])
+
+        if symbol not in positions:
+            positions[symbol] = {
+                "pos": 0,
+                "entry_value": 0.0,
+                "exit_value": 0.0,
+                "shares": 0,
+                "fees": 0.0,
+                "side": None,
+                "start_time": dt_text,
+            }
+
+        p = positions[symbol]
+
+        if p["shares"] == 0 and p["pos"] == 0:
+            p["start_time"] = dt_text
+
+        # B = BUY
+        if side == "B":
+            if p["pos"] < 0:
+                # cerrar short
+                p["pos"] += qty
+                p["exit_value"] += qty * price
+            else:
+                # abrir o añadir long
+                p["pos"] += qty
+                p["entry_value"] += qty * price
+                p["shares"] += qty
+                p["side"] = "LONG"
+
+        # S = SELL (cerrar long)
+        elif side == "S":
+            if p["pos"] > 0:
+                p["pos"] -= qty
+                p["exit_value"] += qty * price
+            else:
+                # seguridad ante caso raro
+                p["pos"] -= qty
+                p["entry_value"] += qty * price
+                p["shares"] += qty
+                p["side"] = "SHORT"
+
+        # T = SELL SHORT (abrir short)
+        elif side == "T":
+            if p["pos"] <= 0:
+                p["pos"] -= qty
+                p["entry_value"] += qty * price
+                p["shares"] += qty
+                p["side"] = "SHORT"
+            else:
+                # si hubiera reversión contra un long abierto
+                p["pos"] -= qty
+                p["exit_value"] += qty * price
+
+        else:
+            continue
+
+        p["fees"] += fee
+
+        if p["pos"] == 0 and p["shares"] > 0:
+            if p["side"] == "LONG":
+                pnl = p["exit_value"] - p["entry_value"] - p["fees"]
+            else:
+                pnl = p["entry_value"] - p["exit_value"] - p["fees"]
+
+            entry_price = p["entry_value"] / p["shares"] if p["shares"] else 0
+            exit_price = p["exit_value"] / p["shares"] if p["shares"] else 0
+
+            trades.append({
+                "date": p["start_time"],
+                "symbol": symbol,
+                "side": p["side"],
+                "shares": p["shares"],
+                "entry": round(entry_price, 4),
+                "exit": round(exit_price, 4),
+                "pnl": round(pnl, 2),
+                "fee": round(p["fees"], 2),
+                "setup": "",
+                "notes": "",
+            })
+
+            positions[symbol] = {
+                "pos": 0,
+                "entry_value": 0.0,
+                "exit_value": 0.0,
+                "shares": 0,
+                "fees": 0.0,
+                "side": None,
+                "start_time": None,
+            }
+
+    return trades
+
+
+def generate_equity_curve_image(trades):
+    import base64
+
+    pnl_values = []
+    running = 0
+
+    for t in reversed(trades):  # de más antiguo a más nuevo
+        try:
+            pnl = float(t[7]) if t[7] is not None else 0
+        except:
+            pnl = 0
+
+        running += pnl
+        pnl_values.append(running)
+
+    if not pnl_values:
+        return ""
+
+    x = list(range(1, len(pnl_values) + 1))
+
+    # Suavizado simple con media móvil
+    def smooth_series(values, window=3):
+        if len(values) < 3:
+            return values[:]
+
+        smoothed = []
+        half = window // 2
+
+        for i in range(len(values)):
+            start = max(0, i - half)
+            end = min(len(values), i + half + 1)
+            segment = values[start:end]
+            smoothed.append(sum(segment) / len(segment))
+
+        return smoothed
+
+    smooth_pnl = smooth_series(pnl_values, window=3)
+
+    fig, ax = plt.subplots(figsize=(10, 4.6), facecolor="#0b1220")
+    ax.set_facecolor("#111827")
+
+    # Línea real tenue
+    ax.plot(
+        x,
+        pnl_values,
+        linewidth=1.5,
+        alpha=0.35,
+        color="#60a5fa"
+    )
+
+    # Línea suavizada principal
+    ax.plot(
+        x,
+        smooth_pnl,
+        linewidth=3,
+        color="#22c55e",
+        solid_capstyle="round"
+    )
+
+    # Puntos reales
+    ax.scatter(
+        x,
+        pnl_values,
+        s=28,
+        color="#93c5fd",
+        alpha=0.9
+    )
+
+    # Relleno inferior
+    ax.fill_between(
+        x,
+        smooth_pnl,
+        [min(0, min(smooth_pnl))] * len(x),
+        color="#22c55e",
+        alpha=0.12
+    )
+
+    ax.set_title("Equity Curve", color="white", fontsize=18, pad=12)
+    ax.set_xlabel("Trades", color="#d1d5db", fontsize=11)
+    ax.set_ylabel("Cumulative PnL", color="#d1d5db", fontsize=11)
+
+    ax.tick_params(axis="x", colors="#d1d5db")
+    ax.tick_params(axis="y", colors="#d1d5db")
+
+    for spine in ax.spines.values():
+        spine.set_color("#374151")
+
+    ax.grid(True, linestyle="--", alpha=0.18, color="#9ca3af")
+
+    plt.tight_layout()
+
+    buf = io.BytesIO()
+    plt.savefig(buf, format="png", facecolor=fig.get_facecolor(), bbox_inches="tight")
+    plt.close(fig)
+
+    buf.seek(0)
+    img_base64 = base64.b64encode(buf.read()).decode("utf-8")
+    return img_base64
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -1879,47 +2142,41 @@ def login():
 
     return render_template("login.html", error=error)
 
+
 @app.route("/import-trades", methods=["GET", "POST"])
 def import_trades():
     if request.method == "POST":
-        file = request.files["file"]
+        file = request.files.get("file")
 
-        if not file:
-            return "No file uploaded"
+        if not file or file.filename == "":
+            return "<h2>No file selected</h2>"
 
-        stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
-        reader = csv.DictReader(stream)
+        try:
+            stream = io.StringIO(file.stream.read().decode("utf-8-sig"), newline=None)
+            reader = csv.DictReader(stream, delimiter=';')
+            parsed_trades = parse_zimtra_trades_from_rows(list(reader))
+        except Exception as e:
+            return f"<h2>Error importing file</h2><pre>{escape(str(e))}</pre>"
 
-        conn = get_db()
+        conn = get_db_connection()
         c = conn.cursor()
 
-        for row in reader:
-            try:
-                symbol = row.get("Symbol", "")
-                side = row.get("Side", "")
-                shares = float(row.get("Shares", 0))
-                entry = float(row.get("Price", 0))
-                exit_price = float(row.get("Exit Price", 0))
-                pnl = float(row.get("P&L", 0))
-
-                c.execute("""
-                    INSERT INTO trades (date, symbol, side, shares, entry, exit, pnl, fee, setup, notes)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    row.get("Date"),
-                    symbol,
-                    side,
-                    shares,
-                    entry,
-                    exit_price,
-                    pnl,
-                    0,
-                    "",
-                    ""
-                ))
-
-            except:
-                continue
+        for trade in parsed_trades:
+            c.execute("""
+                INSERT INTO trades (date, symbol, side, shares, entry, exit, pnl, fee, setup, notes)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                trade["date"],
+                trade["symbol"],
+                trade["side"],
+                trade["shares"],
+                trade["entry"],
+                trade["exit"],
+                trade["pnl"],
+                trade["fee"],
+                trade["setup"],
+                trade["notes"]
+            ))
 
         conn.commit()
         conn.close()
@@ -1929,10 +2186,90 @@ def import_trades():
     html = """
     <h2>Import Trades</h2>
 
-    <form method="POST" enctype="multipart/form-data" style="margin-top:20px;">
-        <input type="file" name="file" required>
-        <button type="submit">Upload CSV</button>
+    <form id="uploadForm" method="POST" enctype="multipart/form-data">
+        <div style="
+            border:2px dashed #333;
+            border-radius:12px;
+            padding:40px;
+            text-align:center;
+            margin-top:30px;
+            background:#0f0f0f;
+        ">
+
+            <p style="color:#888;">Drag & drop your CSV file here</p>
+
+            <input type="file" id="fileInput" name="file" style="margin-top:15px; color:white;">
+
+            <br><br>
+
+            <button type="button" onclick="previewFile()" style="
+                padding:10px 20px;
+                background:#4f46e5;
+                border:none;
+                border-radius:8px;
+                color:white;
+                cursor:pointer;
+                margin-right:10px;
+            ">
+                Preview
+            </button>
+
+            <button type="submit" style="
+                padding:10px 20px;
+                background:#00aa66;
+                border:none;
+                border-radius:8px;
+                color:white;
+                cursor:pointer;
+            ">
+                Import Trades
+            </button>
+
+        </div>
     </form>
+
+    <div id="preview" style="margin-top:30px;"></div>
+    """
+
+    html += """
+    <script>
+    function previewFile() {
+        const fileInput = document.getElementById("fileInput");
+        const file = fileInput.files[0];
+
+        if (!file) {
+            alert("Select a file first");
+            return;
+        }
+
+        const reader = new FileReader();
+
+        reader.onload = function(e) {
+            const text = e.target.result.trim();
+            const rows = text.split("\\n").slice(0, 10);
+
+            let html = "<h3 style='margin-bottom:15px;'>Preview</h3>";
+            html += "<table style='width:100%; border-collapse:collapse;'>";
+
+            rows.forEach((row, index) => {
+                let cols = row.split(";");
+                html += "<tr style='border-bottom:1px solid #222;'>";
+
+                cols.forEach(col => {
+                    const tag = index === 0 ? "th" : "td";
+                    html += `<${tag} style="padding:8px; text-align:left;">${col}</${tag}>`;
+                });
+
+                html += "</tr>";
+            });
+
+            html += "</table>";
+            document.getElementById("preview").innerHTML = html;
+        };
+
+        reader.readAsText(file);
+    }
+    </script>
     """
 
     main_menu_html = render_main_menu("import_trades")
@@ -1945,15 +2282,36 @@ def import_trades():
         main_menu_html=main_menu_html
     )
 
-@app.route("/trade-history")
-def trade_history():
 
+@app.route("/delete-selected-trades", methods=["POST"])
+@login_required
+def delete_selected_trades():
+    trade_ids = request.form.getlist("trade_ids")
+
+    if not trade_ids:
+        return redirect(url_for("trade_history"))
+
+    conn = get_db_connection()
+    c = conn.cursor()
+
+    placeholders = ",".join(["?"] * len(trade_ids))
+    c.execute(f"DELETE FROM trades WHERE id IN ({placeholders})", trade_ids)
+
+    conn.commit()
+    conn.close()
+
+    return redirect(url_for("trade_history"))
+
+
+@app.route("/trade-history")
+@login_required
+def trade_history():
     try:
         conn = get_db_connection()
         c = conn.cursor()
 
         trades = c.execute("""
-            SELECT date, symbol, side, shares, entry, exit, pnl
+            SELECT id, date, symbol, side, shares, entry, exit, pnl
             FROM trades
             ORDER BY date DESC
         """).fetchall() or []
@@ -1968,8 +2326,8 @@ def trade_history():
 
         for t in trades:
             try:
-                pnl_value = float(t[6]) if t[6] is not None else 0
-            except:
+                pnl_value = float(t[7]) if t[7] is not None else 0
+            except Exception:
                 pnl_value = 0
 
             total_pnl += pnl_value
@@ -1980,98 +2338,365 @@ def trade_history():
                 losses.append(pnl_value)
 
         win_rate = (len(wins) / total_trades * 100) if total_trades else 0
+        avg_win = sum(wins) / len(wins) if wins else 0
+        avg_loss = sum(losses) / len(losses) if losses else 0
+        profit_factor = (sum(wins) / abs(sum(losses))) if losses and sum(losses) != 0 else 0
+        expectancy = (win_rate / 100 * avg_win) + ((1 - win_rate / 100) * avg_loss)
+
+        equity_curve_base64 = generate_equity_curve_image(trades)
 
         rows = ""
 
         for t in trades:
+            trade_id = t[0]
+
             try:
-                pnl = float(t[6]) if t[6] is not None else 0
-            except:
+                pnl = float(t[7]) if t[7] is not None else 0
+            except Exception:
                 pnl = 0
 
             color = "#00ff9c" if pnl > 0 else "#ff4d4d"
-            side_class = "green" if (t[2] or "").upper() == "LONG" else "red"
+            side_class = "green" if (t[3] or "").upper() == "LONG" else "red"
 
             rows += f"""
-            <tr>
-                <td>{t[0] or ''}</td>
+            <tr style="border-bottom:1px solid #222;">
+                <td style="text-align:center;">
+                    <input type="checkbox" name="trade_ids" value="{trade_id}" class="trade-checkbox">
+                </td>
                 <td>{t[1] or ''}</td>
-                <td class="{side_class}">{t[2] or ''}</td>
-                <td>{t[3] or ''}</td>
+                <td>{t[2] or ''}</td>
+                <td class="{side_class}">{t[3] or ''}</td>
                 <td>{t[4] or ''}</td>
                 <td>{t[5] or ''}</td>
+                <td>{t[6] or ''}</td>
                 <td style="color:{color}">{pnl:.2f}</td>
             </tr>
             """
 
+        equity_html = ""
+        if equity_curve_base64:
+            equity_html = f"""
+            <div style="margin-top:30px; background:#111; padding:20px; border-radius:12px;">
+                <h3 style="margin-bottom:15px;">Equity Curve</h3>
+                <img src="data:image/png;base64,{equity_curve_base64}" style="width:100%; border-radius:10px;">
+            </div>
+            """
+
         html = f"""
+        <style>
+        .stats-grid-pro {{
+            display:flex;
+            gap:20px;
+            margin-top:20px;
+            margin-bottom:20px;
+            flex-wrap:wrap;
+            align-items:stretch;
+        }}
+
+        .stat-card-pro {{
+            background:#111827;
+            padding:18px;
+            border-radius:16px;
+            min-width:170px;
+            box-shadow:0 0 0 1px rgba(255,255,255,0.04) inset;
+        }}
+
+        .stat-card-pro.large {{
+            min-width:220px;
+        }}
+
+        .stat-label-pro {{
+            color:#94a3b8;
+            font-size:12px;
+            margin-bottom:10px;
+        }}
+
+        .stat-value-pro {{
+            font-size:26px;
+            font-weight:700;
+            color:white;
+        }}
+
+        .stat-value-green {{
+            color:#00ff9c;
+        }}
+
+        .stat-value-red {{
+            color:#ff4d4d;
+        }}
+
+        .winrate-wrap {{
+            display:flex;
+            align-items:center;
+            gap:18px;
+        }}
+
+        .winrate-circle {{
+            --pct: 0;
+            width:90px;
+            height:90px;
+            border-radius:50%;
+            background: conic-gradient(#00ff9c calc(var(--pct) * 1%), #1f2937 0);
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            position:relative;
+            flex-shrink:0;
+        }}
+
+        .winrate-circle::before {{
+            content:"";
+            width:64px;
+            height:64px;
+            border-radius:50%;
+            background:#0b1220;
+            position:absolute;
+        }}
+
+        .winrate-inner {{
+            position:relative;
+            z-index:2;
+            color:white;
+            font-size:18px;
+            font-weight:700;
+        }}
+
+        .mini-bar-wrap {{
+            margin-top:8px;
+        }}
+
+        .mini-bar-row {{
+            margin-bottom:10px;
+        }}
+
+        .mini-bar-top {{
+            display:flex;
+            justify-content:space-between;
+            font-size:12px;
+            color:#cbd5e1;
+            margin-bottom:4px;
+        }}
+
+        .mini-bar {{
+            height:10px;
+            background:#1f2937;
+            border-radius:999px;
+            overflow:hidden;
+        }}
+
+        .mini-bar-fill-green {{
+            height:100%;
+            background:#00d084;
+            border-radius:999px;
+        }}
+
+        .mini-bar-fill-red {{
+            height:100%;
+            background:#ff5c5c;
+            border-radius:999px;
+        }}
+        </style>
+
         <h2>Trade History</h2>
 
-        <div style="display:flex; gap:20px; margin-top:20px; margin-bottom:20px; flex-wrap:wrap;">
-            <div>Total Trades: {total_trades}</div>
-            <div>Win Rate: {win_rate:.1f}%</div>
-            <div>Total PnL: {total_pnl:.2f}</div>
+        <div class="stats-grid-pro">
+            <div class="stat-card-pro">
+                <div class="stat-label-pro">Total Trades</div>
+                <div class="stat-value-pro">{total_trades}</div>
+            </div>
+
+            <div class="stat-card-pro large">
+                <div class="stat-label-pro">Win Rate</div>
+                <div class="winrate-wrap">
+                    <div class="winrate-circle" style="--pct:{win_rate:.1f};">
+                        <div class="winrate-inner">{win_rate:.0f}%</div>
+                    </div>
+                    <div>
+                        <div style="color:#cbd5e1; font-size:13px; margin-bottom:6px;">
+                            Wins: <b style="color:#00ff9c;">{len(wins)}</b>
+                        </div>
+                        <div style="color:#cbd5e1; font-size:13px;">
+                            Losses: <b style="color:#ff4d4d;">{len(losses)}</b>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stat-card-pro">
+                <div class="stat-label-pro">Total PnL</div>
+                <div class="stat-value-pro {'stat-value-green' if total_pnl > 0 else 'stat-value-red'}">
+                    {total_pnl:.2f}
+                </div>
+            </div>
+
+            <div class="stat-card-pro">
+                <div class="stat-label-pro">Profit Factor</div>
+                <div class="stat-value-pro">{profit_factor:.2f}</div>
+            </div>
+
+            <div class="stat-card-pro large">
+                <div class="stat-label-pro">Avg Win vs Avg Loss</div>
+
+                <div class="mini-bar-wrap">
+                    <div class="mini-bar-row">
+                        <div class="mini-bar-top">
+                            <span>Avg Win</span>
+                            <span style="color:#00ff9c;">{avg_win:.2f}</span>
+                        </div>
+                        <div class="mini-bar">
+                            <div class="mini-bar-fill-green" style="width:{min(100, abs(avg_win) * 3)}%;"></div>
+                        </div>
+                    </div>
+
+                    <div class="mini-bar-row">
+                        <div class="mini-bar-top">
+                            <span>Avg Loss</span>
+                            <span style="color:#ff4d4d;">{avg_loss:.2f}</span>
+                        </div>
+                        <div class="mini-bar">
+                            <div class="mini-bar-fill-red" style="width:{min(100, abs(avg_loss) * 3)}%;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stat-card-pro">
+                <div class="stat-label-pro">Expectancy</div>
+                <div class="stat-value-pro {'stat-value-green' if expectancy > 0 else 'stat-value-red'}">
+                    {expectancy:.2f}
+                </div>
+            </div>
         </div>
 
-        <div style="margin-top:20px; display:flex; gap:10px; flex-wrap:wrap;">
-            <input id="searchSymbol" placeholder="Symbol"
-                style="padding:8px; background:#111; border:1px solid #333; color:white;">
+        {equity_html}
 
-            <button onclick="filterSide('ALL')" style="padding:8px;">All</button>
-            <button onclick="filterSide('LONG')" style="padding:8px;">Long</button>
-            <button onclick="filterSide('SHORT')" style="padding:8px;">Short</button>
-        </div>
+        <form method="POST" action="/delete-selected-trades" onsubmit="return confirmDeleteSelected();">
+            <div style="margin-top:20px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                <input id="searchSymbol" placeholder="Symbol"
+                    style="padding:8px; background:#111; border:1px solid #333; color:white;">
 
-        <table id="tradeTable" style="width:100%; margin-top:20px;">
-        <tr>
-            <th>Date</th>
-            <th>Symbol</th>
-            <th>Side</th>
-            <th>Shares</th>
-            <th>Entry</th>
-            <th>Exit</th>
-            <th>PnL</th>
-        </tr>
+                <button type="button" onclick="filterSide('ALL')" style="
+                    padding:8px 14px;
+                    background:#1f1f1f;
+                    border:1px solid #333;
+                    border-radius:8px;
+                    color:#ccc;
+                    cursor:pointer;
+                ">
+                    All
+                </button>
 
-        {rows}
+                <button type="button" onclick="filterSide('LONG')" style="
+                    padding:8px 14px;
+                    background:#002b22;
+                    border:1px solid #00ff9c;
+                    border-radius:8px;
+                    color:#00ff9c;
+                    cursor:pointer;
+                ">
+                    Long
+                </button>
 
-        </table>
-        """
+                <button type="button" onclick="filterSide('SHORT')" style="
+                    padding:8px 14px;
+                    background:#2b0000;
+                    border:1px solid #ff4d4d;
+                    border-radius:8px;
+                    color:#ff4d4d;
+                    cursor:pointer;
+                ">
+                    Short
+                </button>
 
-        html += """
+                <button type="button" onclick="toggleSelectAll()" style="
+                    padding:8px 14px;
+                    background:#1a2740;
+                    border:1px solid #4f8cff;
+                    border-radius:8px;
+                    color:#9cc3ff;
+                    cursor:pointer;
+                ">
+                    Select All
+                </button>
+
+                <button type="submit" style="
+                    padding:8px 14px;
+                    background:#3a0000;
+                    border:1px solid #ff4d4d;
+                    border-radius:8px;
+                    color:#ff4d4d;
+                    cursor:pointer;
+                ">
+                    Delete Selected
+                </button>
+            </div>
+
+            <table id="tradeTable" style="width:100%; margin-top:20px; border-collapse:collapse;">
+                <tr>
+                    <th style="width:50px;">✓</th>
+                    <th>Date</th>
+                    <th>Symbol</th>
+                    <th>Side</th>
+                    <th>Shares</th>
+                    <th>Entry</th>
+                    <th>Exit</th>
+                    <th>PnL</th>
+                </tr>
+                {rows}
+            </table>
+        </form>
+
         <script>
-        function filterSide(side) {
+        function filterSide(side) {{
             let rows = document.querySelectorAll("#tradeTable tr");
 
-            rows.forEach((row, index) => {
+            rows.forEach((row, index) => {{
                 if (index === 0) return;
 
-                let sideCell = row.children[2].innerText.trim().toUpperCase();
+                let sideCell = row.children[3].innerText.trim().toUpperCase();
 
-                if (side === "ALL" || sideCell === side) {
+                if (side === "ALL" || sideCell === side) {{
                     row.style.display = "";
-                } else {
+                }} else {{
                     row.style.display = "none";
-                }
-            });
-        }
+                }}
+            }});
+        }}
 
-        document.getElementById("searchSymbol").addEventListener("input", function() {
+        document.getElementById("searchSymbol").addEventListener("input", function() {{
             let value = this.value.toUpperCase();
             let rows = document.querySelectorAll("#tradeTable tr");
 
-            rows.forEach((row, index) => {
+            rows.forEach((row, index) => {{
                 if (index === 0) return;
 
-                let symbol = row.children[1].innerText.toUpperCase();
+                let symbol = row.children[2].innerText.toUpperCase();
 
-                if (symbol.includes(value)) {
+                if (symbol.includes(value)) {{
                     row.style.display = "";
-                } else {
+                }} else {{
                     row.style.display = "none";
-                }
-            });
-        });
+                }}
+            }});
+        }});
+
+        function toggleSelectAll() {{
+            const checkboxes = document.querySelectorAll(".trade-checkbox");
+            const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+
+            checkboxes.forEach(cb => {{
+                cb.checked = !allChecked;
+            }});
+        }}
+
+        function confirmDeleteSelected() {{
+            const checked = document.querySelectorAll(".trade-checkbox:checked");
+            if (checked.length === 0) {{
+                alert("Selecciona al menos un trade");
+                return false;
+            }}
+            return confirm("¿Seguro que quieres borrar los trades seleccionados?");
+        }}
         </script>
         """
 
@@ -2091,12 +2716,14 @@ def trade_history():
 @app.route("/test")
 def test_api():
     data = test_twelvedata("AAPL")
+
     return jsonify(data)
 
 
 @app.route("/test_intraday")
 def test_intraday():
     data = get_intraday_snapshot("AAPL")
+
     return jsonify(data)
 
 
@@ -2104,6 +2731,7 @@ def test_intraday():
 @login_required
 def logout():
     logout_user()
+
     return redirect(url_for("login"))
 
 
@@ -2111,6 +2739,7 @@ def logout():
 @login_required
 def toggle_favorite_route(ticker):
     toggle_favorite(ticker.upper())
+
     return redirect(url_for("home", ticker=ticker.upper()))
 
 
@@ -2118,9 +2747,12 @@ def toggle_favorite_route(ticker):
 @login_required
 def save_note_route():
     ticker = request.form.get("ticker", "").strip().upper()
+
     note = request.form.get("note", "")
+
     if ticker:
         save_note(ticker, note)
+
     return redirect(url_for("home", ticker=ticker))
 
 
@@ -2131,22 +2763,33 @@ def create_user_route():
         return "No autorizado", 403
 
     error = None
+
     success = None
 
     if request.method == "POST":
+
         username = request.form.get("username", "").strip()
+
         password = request.form.get("password", "").strip()
 
         if not username or not password:
+
             error = "Faltan datos"
+
         else:
+
             try:
+
                 create_user(username, password)
+
                 success = "Usuario creado correctamente"
+
             except sqlite3.IntegrityError:
+
                 error = "El usuario ya existe"
 
     main_menu_html = render_main_menu("create_user")
+
     return render_template("create_user.html", error=error, success=success, main_menu_html=main_menu_html)
 
 
@@ -2154,71 +2797,117 @@ def create_user_route():
 @login_required
 def home():
     ticker = request.args.get("ticker", "").strip().upper()
+
     content = ""
 
     if request.method == "POST":
         ticker = request.form.get("ticker", "").strip().upper()
 
     if ticker:
+
         data = get_stock_data(ticker)
+
         intraday_data = get_intraday_snapshot(ticker)
 
         if "error" in data:
+
             content = f'<div class="error-box"><b>Error:</b> {escape(data["error"])}</div>'
+
         else:
+
             news = get_stock_news(ticker, limit=3)
+
             filings = get_recent_sec_filings(ticker, limit=20)
+
             sec_status = analyze_sec_offering_status(filings, max_docs_to_scan=6)
+
             price_detection = detect_price_levels_from_sec(sec_status)
+
             dilution_result = detect_dilution(data, news, filings or [], sec_status, price_detection)
 
             summary_html = render_summary(data, dilution_result, news, sec_status, price_detection, intraday_data)
+
             note_box_html = render_note_box(ticker)
+
             news_html = render_news(news)
+
             filings_html = render_filings(filings)
+
             sec_status_html = render_sec_status(sec_status)
+
             price_detection_html = render_price_detection(price_detection)
+
             overheads = calculate_daily_vwap_overhead(ticker)
+
             overhead_html = render_overhead_block(data, overheads)
 
             content = f"""
-            {summary_html}
 
-            {overhead_html}
+                {summary_html}
 
-            {note_box_html}
 
-            <div class="two-col">
-                <div class="section-card">
-                    <div class="section-title">Latest News</div>
-                    {news_html}
+                {overhead_html}
+
+
+                {note_box_html}
+
+
+                <div class="two-col">
+
+                    <div class="section-card">
+
+                        <div class="section-title">Latest News</div>
+
+                        {news_html}
+
+                    </div>
+
+                    <div class="section-card">
+
+                        <div class="section-title">SEC Status</div>
+
+                        {sec_status_html}
+
+                    </div>
+
                 </div>
+
+
                 <div class="section-card">
-                    <div class="section-title">SEC Status</div>
-                    {sec_status_html}
+
+                    <div class="section-title">Offering / Warrant / Conversion Prices</div>
+
+                    {price_detection_html}
+
                 </div>
-            </div>
 
-            <div class="section-card">
-                <div class="section-title">Offering / Warrant / Conversion Prices</div>
-                {price_detection_html}
-            </div>
 
-            <div class="section-card">
-                <div class="section-title">Recent SEC Filings</div>
-                {filings_html}
-            </div>
-            """
+                <div class="section-card">
+
+                    <div class="section-title">Recent SEC Filings</div>
+
+                    {filings_html}
+
+                </div>
+
+                """
 
     sidebar_html = render_sidebar(ticker)
+
     main_menu_html = render_main_menu("analyzer")
 
     return render_template(
+
         "index.html",
+
         ticker=ticker,
+
         content=content,
+
         sidebar_html=sidebar_html,
+
         main_menu_html=main_menu_html
+
     )
 
 
@@ -2226,9 +2915,12 @@ def home():
 @login_required
 def gainers_page():
     main_menu_html = render_main_menu("gainers")
+    sidebar_html = render_sidebar("")
+
     return render_template(
         "gainers.html",
         main_menu_html=main_menu_html,
+        sidebar_html=sidebar_html,
         chart_symbol="AMEX:SPY"
     )
 
@@ -2237,7 +2929,12 @@ def gainers_page():
 @login_required
 def momentum_page():
     main_menu_html = render_main_menu("momentum")
-    return render_template("momentum.html", main_menu_html=main_menu_html)
+    sidebar_html = render_sidebar("")
+    return render_template(
+        "momentum.html",
+        main_menu_html=main_menu_html,
+        sidebar_html=sidebar_html
+    )
 
 
 @app.route("/gap-stats", methods=["GET", "POST"])
@@ -2264,10 +2961,12 @@ def gap_stats_page():
             result = None
 
     main_menu_html = render_main_menu("gap_stats")
+    sidebar_html = render_sidebar("")
 
     return render_template(
         "gap_stats.html",
         main_menu_html=main_menu_html,
+        sidebar_html=sidebar_html,
         ticker=ticker,
         gap_percent=gap_percent,
         period_key=period_key,
@@ -2283,18 +2982,30 @@ def api_gainers():
     data = build_gainers()
 
     cleaned = []
+
     for x in data:
         item = {
+
             "symbol": x.get("symbol") or x.get("ticker") or "N/A",
+
             "company": x.get("company") or x.get("companyName") or "",
+
             "price": safe_float(x.get("price", x.get("last_price", 0)), 0),
+
             "change_percent": safe_float(
+
                 x.get("change_percent", x.get("percent_change", x.get("changePct", 0))),
+
                 0
+
             ),
+
             "volume": safe_int(x.get("volume", x.get("current_volume", 0)), 0),
+
         }
+
         item["score"] = compute_score(item)
+
         cleaned.append(item)
 
     cleaned.sort(key=lambda x: x["change_percent"], reverse=True)
@@ -2303,6 +3014,7 @@ def api_gainers():
         item["rank"] = i
 
     print("GAINERS DATA CLEANED:", cleaned)
+
     return jsonify(cleaned)
 
 
@@ -2312,18 +3024,30 @@ def api_momentum():
     data = build_momentum()
 
     cleaned = []
+
     for x in data:
         item = {
+
             "symbol": x.get("symbol") or x.get("ticker") or "N/A",
+
             "company": x.get("company") or x.get("companyName") or "",
+
             "price": safe_float(x.get("price", x.get("last_price", 0)), 0),
+
             "change_percent": safe_float(
+
                 x.get("change_percent", x.get("percent_change", x.get("changePct", 0))),
+
                 0
+
             ),
+
             "volume": safe_int(x.get("volume", x.get("current_volume", 0)), 0),
+
         }
+
         item["score"] = compute_score(item)
+
         cleaned.append(item)
 
     cleaned.sort(key=lambda x: x["score"], reverse=True)
@@ -2332,6 +3056,7 @@ def api_momentum():
         item["rank"] = i
 
     print("MOMENTUM DATA CLEANED:", cleaned)
+
     return jsonify(cleaned)
 
 
@@ -2339,6 +3064,7 @@ def api_momentum():
 @login_required
 def scanner():
     data = scan_market()
+
     return render_template("scanner.html", data=data, main_menu_html=render_main_menu("scanner"))
 
 
