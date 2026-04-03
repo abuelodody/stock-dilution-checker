@@ -30,7 +30,11 @@ app = Flask(__name__)
 
 
 def get_db():
-    return sqlite3.connect(DB_FILE)
+    conn = sqlite3.connect(DB_FILE, timeout=30, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute("PRAGMA busy_timeout = 30000;")
+    return conn
 
 
 def init_trades_table():
@@ -256,9 +260,7 @@ def format_market_cap(value):
 
 
 def get_db_connection():
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
-    return conn
+    return get_db()
 
 
 def init_db():
@@ -2171,6 +2173,8 @@ def import_trades():
         c = conn.cursor()
 
         try:
+            c.execute("BEGIN IMMEDIATE")
+
             for trade in parsed_trades:
                 c.execute("""
                     INSERT INTO trades (date, symbol, side, shares, entry, exit, pnl, fee, setup, notes)
@@ -2191,6 +2195,7 @@ def import_trades():
             conn.commit()
 
         except Exception as e:
+            conn.rollback()
             conn.close()
             return f"<h2>DB ERROR</h2><pre>{escape(str(e))}</pre>"
 
