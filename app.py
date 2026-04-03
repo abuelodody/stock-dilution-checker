@@ -1938,69 +1938,73 @@ def import_trades():
 
 @app.route("/trade-history")
 def trade_history():
-    conn = get_db()
-    c = conn.cursor()
 
-    trades = c.execute("""
-        SELECT date, symbol, side, shares, entry, exit, pnl
-        FROM trades
-        ORDER BY date DESC
-    """).fetchall() or []
+    try:
+        conn = get_db_connection()  # 👈 IMPORTANTE (NO get_db)
+        c = conn.cursor()
 
-    conn.close()
+        trades = c.execute("""
+            SELECT date, symbol, side, shares, entry, exit, pnl
+            FROM trades
+            ORDER BY date DESC
+        """).fetchall() or []
 
-    rows = ""
-    rows = ""
-    for t in trades:
-        try:
-            pnl = float(t[6]) if t[6] is not None else 0
-        except:
-            pnl = 0
+        conn.close()
 
-        color = "#00ff9c" if pnl > 0 else "#ff4d4d"
+        rows = ""
 
-        side_class = "green" if t[2] == "LONG" else "red"
+        for t in trades:
+            try:
+                pnl = float(t[6]) if t[6] is not None else 0
+            except:
+                pnl = 0
 
-        rows += f"""
+            color = "#00ff9c" if pnl > 0 else "#ff4d4d"
+            side_class = "green" if (t[2] or "").upper() == "LONG" else "red"
+
+            rows += f"""
+            <tr>
+                <td>{t[0] or ''}</td>
+                <td>{t[1] or ''}</td>
+                <td class="{side_class}">{t[2] or ''}</td>
+                <td>{t[3] or ''}</td>
+                <td>{t[4] or ''}</td>
+                <td>{t[5] or ''}</td>
+                <td style="color:{color}">{pnl}</td>
+            </tr>
+            """
+
+        html = f"""
+        <h2>Trade History</h2>
+
+        <table style="width:100%; margin-top:20px;">
         <tr>
-            <td>{t[0] or ''}</td>
-            <td>{t[1] or ''}</td>
-            <td class="{side_class}">{t[2] or ''}</td>
-            <td>{t[3] or ''}</td>
-            <td>{t[4] or ''}</td>
-            <td>{t[5] or ''}</td>
-            <td style="color:{color}">{pnl}</td>
+            <th>Date</th>
+            <th>Symbol</th>
+            <th>Side</th>
+            <th>Shares</th>
+            <th>Entry</th>
+            <th>Exit</th>
+            <th>PnL</th>
         </tr>
+
+        {rows}
+
+        </table>
         """
 
-    html = f"""
-    <h2>Trade History</h2>
+        main_menu_html = render_main_menu("trade_history")
 
-    <table style="width:100%; margin-top:20px;">
-    <tr>
-        <th>Date</th>
-        <th>Symbol</th>
-        <th>Side</th>
-        <th>Shares</th>
-        <th>Entry</th>
-        <th>Exit</th>
-        <th>PnL</th>
-    </tr>
+        return render_template(
+            "index.html",
+            ticker="",
+            content=html,
+            sidebar_html=render_sidebar(""),
+            main_menu_html=main_menu_html
+        )
 
-    {rows}
-
-    </table>
-    """
-
-    main_menu_html = render_main_menu("trade_history")
-
-    return render_template(
-        "index.html",
-        ticker="",
-        content=html,
-        sidebar_html=render_sidebar(""),
-        main_menu_html=main_menu_html
-    )
+    except Exception as e:
+        return f"<h2>ERROR:</h2><pre>{e}</pre>"
 
 @app.route("/test")
 def test_api():
