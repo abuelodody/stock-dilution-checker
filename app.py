@@ -53,6 +53,14 @@ def init_trades_table():
     )
     """)
 
+    columns = [row[1] for row in c.execute("PRAGMA table_info(trades)").fetchall()]
+
+    if "setup" not in columns:
+        c.execute("ALTER TABLE trades ADD COLUMN setup TEXT")
+
+    if "notes" not in columns:
+        c.execute("ALTER TABLE trades ADD COLUMN notes TEXT")
+
     conn.commit()
     conn.close()
 
@@ -2144,6 +2152,7 @@ def login():
 
 
 @app.route("/import-trades", methods=["GET", "POST"])
+@login_required
 def import_trades():
     if request.method == "POST":
         file = request.files.get("file")
@@ -2161,26 +2170,31 @@ def import_trades():
         conn = get_db_connection()
         c = conn.cursor()
 
-        for trade in parsed_trades:
-            c.execute("""
-                INSERT INTO trades (date, symbol, side, shares, entry, exit, pnl, fee, setup, notes)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                trade["date"],
-                trade["symbol"],
-                trade["side"],
-                trade["shares"],
-                trade["entry"],
-                trade["exit"],
-                trade["pnl"],
-                trade["fee"],
-                trade["setup"],
-                trade["notes"]
-            ))
+        try:
+            for trade in parsed_trades:
+                c.execute("""
+                    INSERT INTO trades (date, symbol, side, shares, entry, exit, pnl, fee, setup, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    trade["date"],
+                    trade["symbol"],
+                    trade["side"],
+                    trade["shares"],
+                    trade["entry"],
+                    trade["exit"],
+                    trade["pnl"],
+                    trade["fee"],
+                    trade["setup"],
+                    trade["notes"]
+                ))
 
-        conn.commit()
+            conn.commit()
+
+        except Exception as e:
+            conn.close()
+            return f"<h2>DB ERROR</h2><pre>{escape(str(e))}</pre>"
+
         conn.close()
-
         return redirect(url_for("trade_history"))
 
     html = """
