@@ -1817,6 +1817,14 @@ def render_overhead_block(data, overheads):
 
     current_price = data.get("price", 0)
 
+    total_trades = len(trades)
+
+    wins = [float(t[6]) for t in trades if t[6] and float(t[6]) > 0]
+    losses = [float(t[6]) for t in trades if t[6] and float(t[6]) < 0]
+
+    win_rate = (len(wins) / total_trades * 100) if total_trades else 0
+    total_pnl = sum([float(t[6]) for t in trades if t[6]])
+
     rows = ""
 
     labels = ["PRIMARY", "SECONDARY", "TERTIARY"]
@@ -1941,7 +1949,7 @@ def import_trades():
 def trade_history():
 
     try:
-        conn = get_db_connection()  # 👈 IMPORTANTE (NO get_db)
+        conn = get_db_connection()
         c = conn.cursor()
 
         trades = c.execute("""
@@ -1951,6 +1959,27 @@ def trade_history():
         """).fetchall() or []
 
         conn.close()
+
+        total_trades = len(trades)
+
+        wins = []
+        losses = []
+        total_pnl = 0
+
+        for t in trades:
+            try:
+                pnl_value = float(t[6]) if t[6] is not None else 0
+            except:
+                pnl_value = 0
+
+            total_pnl += pnl_value
+
+            if pnl_value > 0:
+                wins.append(pnl_value)
+            elif pnl_value < 0:
+                losses.append(pnl_value)
+
+        win_rate = (len(wins) / total_trades * 100) if total_trades else 0
 
         rows = ""
 
@@ -1971,14 +2000,29 @@ def trade_history():
                 <td>{t[3] or ''}</td>
                 <td>{t[4] or ''}</td>
                 <td>{t[5] or ''}</td>
-                <td style="color:{color}">{pnl}</td>
+                <td style="color:{color}">{pnl:.2f}</td>
             </tr>
             """
 
         html = f"""
         <h2>Trade History</h2>
 
-        <table style="width:100%; margin-top:20px;">
+        <div style="display:flex; gap:20px; margin-top:20px; margin-bottom:20px; flex-wrap:wrap;">
+            <div>Total Trades: {total_trades}</div>
+            <div>Win Rate: {win_rate:.1f}%</div>
+            <div>Total PnL: {total_pnl:.2f}</div>
+        </div>
+
+        <div style="margin-top:20px; display:flex; gap:10px; flex-wrap:wrap;">
+            <input id="searchSymbol" placeholder="Symbol"
+                style="padding:8px; background:#111; border:1px solid #333; color:white;">
+
+            <button onclick="filterSide('ALL')" style="padding:8px;">All</button>
+            <button onclick="filterSide('LONG')" style="padding:8px;">Long</button>
+            <button onclick="filterSide('SHORT')" style="padding:8px;">Short</button>
+        </div>
+
+        <table id="tradeTable" style="width:100%; margin-top:20px;">
         <tr>
             <th>Date</th>
             <th>Symbol</th>
@@ -1992,6 +2036,43 @@ def trade_history():
         {rows}
 
         </table>
+        """
+
+        html += """
+        <script>
+        function filterSide(side) {
+            let rows = document.querySelectorAll("#tradeTable tr");
+
+            rows.forEach((row, index) => {
+                if (index === 0) return;
+
+                let sideCell = row.children[2].innerText.trim().toUpperCase();
+
+                if (side === "ALL" || sideCell === side) {
+                    row.style.display = "";
+                } else {
+                    row.style.display = "none";
+                }
+            });
+        }
+
+        document.getElementById("searchSymbol").addEventListener("input", function() {
+            let value = this.value.toUpperCase();
+            let rows = document.querySelectorAll("#tradeTable tr");
+
+            rows.forEach((row, index) => {
+                if (index === 0) return;
+
+                let symbol = row.children[1].innerText.toUpperCase();
+
+                if (symbol.includes(value)) {
+                    row.style.display = "";
+                } else {
+                    row.style.display = "none";
+                }
+            });
+        });
+        </script>
         """
 
         main_menu_html = render_main_menu("trade_history")
