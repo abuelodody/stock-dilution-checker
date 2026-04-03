@@ -1917,7 +1917,16 @@ def import_trades():
 
         return redirect(url_for("trade_history"))
 
-    return render_template("import_trades.html")
+    html = """
+    <h2>Import Trades</h2>
+
+    <form method="POST" enctype="multipart/form-data" style="margin-top:20px;">
+        <input type="file" name="file" required>
+        <button type="submit">Upload CSV</button>
+    </form>
+    """
+
+    return render_page(html, active_page="import_trades")
 
 @app.route("/trade-history")
 def trade_history():
@@ -1932,7 +1941,41 @@ def trade_history():
 
     conn.close()
 
-    return render_template("trade_history.html", trades=trades)
+    rows = ""
+    for t in trades:
+        color = "#00ff9c" if t[6] > 0 else "#ff4d4d"
+        rows += f"""
+        <tr>
+            <td>{t[0]}</td>
+            <td>{t[1]}</td>
+            <td>{t[2]}</td>
+            <td>{t[3]}</td>
+            <td>{t[4]}</td>
+            <td>{t[5]}</td>
+            <td style="color:{color}">{t[6]}</td>
+        </tr>
+        """
+
+    html = f"""
+    <h2>Trade History</h2>
+
+    <table style="width:100%; margin-top:20px;">
+    <tr>
+        <th>Date</th>
+        <th>Symbol</th>
+        <th>Side</th>
+        <th>Shares</th>
+        <th>Entry</th>
+        <th>Exit</th>
+        <th>PnL</th>
+    </tr>
+
+    {rows}
+
+    </table>
+    """
+
+    return render_page(html, active_page="trade_history")
 
 @app.route("/test")
 def test_api():
