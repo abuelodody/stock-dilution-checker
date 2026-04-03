@@ -1926,7 +1926,15 @@ def import_trades():
     </form>
     """
 
-    return render_page(html, active_page="import_trades")
+    main_menu_html = render_main_menu("import_trades")
+
+    return render_template(
+        "index.html",
+        ticker="",
+        content=html,
+        sidebar_html=render_sidebar(""),
+        main_menu_html=main_menu_html
+    )
 
 @app.route("/trade-history")
 def trade_history():
@@ -1975,7 +1983,15 @@ def trade_history():
     </table>
     """
 
-    return render_page(html, active_page="trade_history")
+    main_menu_html = render_main_menu("trade_history")
+
+    return render_template(
+        "index.html",
+        ticker="",
+        content=html,
+        sidebar_html=render_sidebar(""),
+        main_menu_html=main_menu_html
+    )
 
 @app.route("/test")
 def test_api():
