@@ -2,250 +2,493 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gainers & Momentum PRO</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <style>
+        :root {
+            --bg: #0b1020;
+            --panel: #121a2b;
+            --panel-2: #182235;
+            --border: #26324a;
+            --text: #e8eefc;
+            --muted: #94a3b8;
+            --accent: #3b82f6;
+            --gold: #facc15;
+            --silver: #cbd5e1;
+            --bronze: #d97706;
+            --green: 34,197,94;
+            --red: 239,68,68;
+        }
+
+        .gainers-pro-title {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: var(--text);
+        }
+
+        .gainers-pro-subtitle {
+            color: var(--muted);
+            margin-bottom: 22px;
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .toolbar button {
+            background: var(--panel-2);
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 10px 14px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .toolbar button:hover {
+            border-color: var(--accent);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px;
+        }
+
+        .card {
+            background: rgba(18, 26, 43, 0.95);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            overflow: hidden;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+        }
+
+        .card-header {
+            padding: 16px 18px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255,255,255,0.02);
+        }
+
+        .card-header h2 {
+            margin: 0;
+            font-size: 18px;
+            color: var(--text);
+        }
+
+        .status {
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 760px;
+        }
+
+        thead {
+            background: rgba(255,255,255,0.03);
+        }
+
+        th, td {
+            padding: 12px 12px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            font-size: 14px;
+            white-space: nowrap;
+            color: var(--text);
+        }
+
+        th {
+            color: #cbd5e1;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+
+        tbody tr {
+            transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        tbody tr:hover {
+            background: rgba(255,255,255,0.03);
+            transform: scale(1.003);
+        }
+
+        .rank-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 38px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            font-weight: 700;
+            font-size: 13px;
+            border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(255,255,255,0.04);
+        }
+
+        .rank-1 {
+            background: rgba(250, 204, 21, 0.18);
+            color: #fde68a;
+            border-color: rgba(250, 204, 21, 0.4);
+        }
+
+        .rank-2 {
+            background: rgba(203, 213, 225, 0.15);
+            color: #e2e8f0;
+            border-color: rgba(203, 213, 225, 0.35);
+        }
+
+        .rank-3 {
+            background: rgba(217, 119, 6, 0.18);
+            color: #fdba74;
+            border-color: rgba(217, 119, 6, 0.35);
+        }
+
+        .top-row {
+            position: relative;
+            background: linear-gradient(90deg, rgba(59,130,246,0.10), rgba(34,197,94,0.10));
+            box-shadow: inset 0 0 0 1px rgba(59,130,246,0.25);
+        }
+
+        .top-row td {
+            font-weight: 600;
+        }
+
+        .ticker {
+            font-weight: 700;
+            color: #ffffff;
+        }
+
+        .company {
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .pct-pill {
+            display: inline-block;
+            min-width: 84px;
+            text-align: center;
+            font-weight: 700;
+            padding: 7px 10px;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+
+        .score-pill {
+            display: inline-block;
+            min-width: 62px;
+            text-align: center;
+            font-weight: 700;
+            padding: 6px 10px;
+            border-radius: 10px;
+            background: rgba(59,130,246,0.12);
+            color: #bfdbfe;
+            border: 1px solid rgba(59,130,246,0.25);
+        }
+
+        .tv-box {
+            margin-top: 22px;
+            background: rgba(18, 26, 43, 0.95);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 14px;
+            overflow: hidden;
+        }
+
+        .tv-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 10px;
+            color: var(--text);
+        }
+
+        .loading,
+        .empty,
+        .error {
+            padding: 18px;
+            color: var(--muted);
+        }
+
+        @media (max-width: 1100px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
 </head>
+
 <body>
-    <div class="app-shell">
-        <aside class="main-sidebar">
-            <div class="main-sidebar-title">Small Cap Tool</div>
-            <div class="main-nav">
-                {{ main_menu_html|safe }}
+
+<div class="app-shell">
+
+    <aside class="main-sidebar">
+        <div class="main-sidebar-title">Small Cap Tool</div>
+
+        <div class="main-nav">
+            {{ main_menu_html|safe }}
+        </div>
+
+        <div class="sidebar-card" style="margin-top: 20px;">
+            <div class="sidebar-title">Favorites</div>
+            {{ sidebar_html|safe }}
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <div class="container">
+
+            <div class="gainers-pro-title">Gainers & Momentum PRO</div>
+            <div class="gainers-pro-subtitle">Ranking visual, intensidad de color, top highlight y score dinámico</div>
+
+            <div class="toolbar">
+                <button onclick="loadAllData()">Actualizar</button>
+                <button onclick="toggleScore()">Mostrar/Ocultar Score</button>
             </div>
-        </aside>
 
-        <main class="main-content">
-            <div class="gainers-page">
-                <h1 class="gainers-page-title">Gainers & Momentum PRO</h1>
-                <div class="gainers-page-subtitle">
-                    Ranking visual, intensidad de color, top highlight y score dinámico
-                </div>
+            <div class="grid">
 
-                <div class="gainers-toolbar">
-                    <button type="button" onclick="loadAllData()">Actualizar</button>
-                    <button type="button" onclick="toggleScore()">Mostrar/Ocultar Score</button>
-                </div>
-
-                <div class="gainers-grid">
-                    <div class="gainers-card">
-                        <div class="gainers-card-header">
-                            <h2>Top Gainers</h2>
-                            <div id="gainers-status" class="gainers-status">Cargando...</div>
-                        </div>
-
-                        <div class="gainers-table-wrap">
-                            <table class="gainers-table">
-                                <thead>
-                                    <tr>
-                                        <th>Rank</th>
-                                        <th>Ticker</th>
-                                        <th>Precio</th>
-                                        <th>%</th>
-                                        <th>Volumen</th>
-                                        <th class="score-col">Score</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="gainers-body">
-                                    <tr><td colspan="6" class="gainers-empty">Cargando gainers...</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Top Gainers</h2>
+                        <div id="gainers-status" class="status">Cargando...</div>
                     </div>
-
-                    <div class="gainers-card">
-                        <div class="gainers-card-header">
-                            <h2>Momentum</h2>
-                            <div id="momentum-status" class="gainers-status">Cargando...</div>
-                        </div>
-
-                        <div class="gainers-table-wrap">
-                            <table class="gainers-table">
-                                <thead>
-                                    <tr>
-                                        <th>Rank</th>
-                                        <th>Ticker</th>
-                                        <th>Precio</th>
-                                        <th>%</th>
-                                        <th>Volumen</th>
-                                        <th class="score-col">Score</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="momentum-body">
-                                    <tr><td colspan="6" class="gainers-empty">Cargando momentum...</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>Ticker</th>
+                                    <th>Precio</th>
+                                    <th>%</th>
+                                    <th>Volumen</th>
+                                    <th class="score-col">Score</th>
+                                </tr>
+                            </thead>
+                            <tbody id="gainers-body">
+                                <tr><td colspan="6" class="loading">Cargando gainers...</td></tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
 
-                <div class="tv-box">
-                    <div class="tv-title">TradingView</div>
+                <div class="card">
+                    <div class="card-header">
+                        <h2>Momentum</h2>
+                        <div id="momentum-status" class="status">Cargando...</div>
+                    </div>
+                    <div class="table-wrap">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>Ticker</th>
+                                    <th>Precio</th>
+                                    <th>%</th>
+                                    <th>Volumen</th>
+                                    <th class="score-col">Score</th>
+                                </tr>
+                            </thead>
+                            <tbody id="momentum-body">
+                                <tr><td colspan="6" class="loading">Cargando momentum...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="tv-box">
+                <div class="tv-title">TradingView</div>
+                <div class="tradingview-widget-container">
                     <div id="tradingview_chart" style="height: 520px;"></div>
                 </div>
             </div>
-        </main>
-    </div>
 
-    <script src="https://s3.tradingview.com/tv.js"></script>
-    <script>
-        let showScore = true;
+        </div>
+    </main>
 
-        function formatNumber(value) {
-            if (value === null || value === undefined || value === "" || isNaN(value)) return "N/A";
-            return Number(value).toLocaleString("es-ES");
+</div>
+
+<script src="https://s3.tradingview.com/tv.js"></script>
+<script>
+    let showScore = true;
+
+    function formatNumber(value) {
+        if (value === null || value === undefined || value === "" || isNaN(value)) return "N/A";
+        return Number(value).toLocaleString("es-ES");
+    }
+
+    function formatPrice(value) {
+        if (value === null || value === undefined || value === "" || isNaN(value)) return "N/A";
+        return "$" + Number(value).toFixed(2);
+    }
+
+    function formatPercent(value) {
+        if (value === null || value === undefined || value === "" || isNaN(value)) return "N/A";
+        const num = Number(value);
+        return `${num >= 0 ? "+" : ""}${num.toFixed(2)}%`;
+    }
+
+    function getRankClass(rank) {
+        if (rank === 1) return "rank-1";
+        if (rank === 2) return "rank-2";
+        if (rank === 3) return "rank-3";
+        return "";
+    }
+
+    function percentToBg(percent) {
+        const p = Number(percent || 0);
+        const alpha = Math.min(0.18 + (Math.abs(p) / 50), 0.85);
+        return p >= 0
+            ? `rgba(34,197,94,${alpha})`
+            : `rgba(239,68,68,${alpha})`;
+    }
+
+    function percentToBorder(percent) {
+        const p = Number(percent || 0);
+        const alpha = Math.min(0.25 + (Math.abs(p) / 60), 0.95);
+        return p >= 0
+            ? `rgba(34,197,94,${alpha})`
+            : `rgba(239,68,68,${alpha})`;
+    }
+
+    function computeScore(item) {
+        const pct = Number(item.change_percent || 0);
+        const volume = Number(item.volume || 0);
+        const volumeFactor = volume > 0 ? Math.log10(volume + 1) * 10 : 0;
+        const score = (pct * 0.7) + (volumeFactor * 0.3);
+        return score.toFixed(1);
+    }
+
+    function normalizeItem(item) {
+        return {
+            symbol: item.symbol || item.ticker || "N/A",
+            company: item.company || item.companyName || "",
+            price: item.price ?? item.last_price ?? null,
+            change_percent: item.change_percent ?? item.percent_change ?? item.changePct ?? 0,
+            volume: item.volume ?? item.current_volume ?? 0
+        };
+    }
+
+    function renderTable(items, tbodyId, statusId) {
+        const tbody = document.getElementById(tbodyId);
+        const status = document.getElementById(statusId);
+
+        if (!items || !items.length) {
+            tbody.innerHTML = `<tr><td colspan="6" class="empty">Sin datos</td></tr>`;
+            status.textContent = "Sin datos";
+            return;
         }
 
-        function formatPrice(value) {
-            if (value === null || value === undefined || value === "" || isNaN(value)) return "N/A";
-            return "$" + Number(value).toFixed(2);
+        const normalized = items.map(normalizeItem);
+
+        tbody.innerHTML = normalized.map((item, index) => {
+            const rank = index + 1;
+            const score = computeScore(item);
+            const pctBg = percentToBg(item.change_percent);
+            const pctBorder = percentToBorder(item.change_percent);
+
+            return `
+                <tr class="${rank === 1 ? 'top-row' : ''}">
+                    <td>
+                        <span class="rank-badge ${getRankClass(rank)}">#${rank}</span>
+                    </td>
+                    <td>
+                        <div class="ticker">${item.symbol}</div>
+                        <div class="company">${item.company || ""}</div>
+                    </td>
+                    <td>${formatPrice(item.price)}</td>
+                    <td>
+                        <span class="pct-pill" style="background:${pctBg}; border-color:${pctBorder}; color:white;">
+                            ${formatPercent(item.change_percent)}
+                        </span>
+                    </td>
+                    <td>${formatNumber(item.volume)}</td>
+                    <td class="score-col"><span class="score-pill">${score}</span></td>
+                </tr>
+            `;
+        }).join("");
+
+        status.textContent = `Actualizado: ${new Date().toLocaleTimeString("es-ES")}`;
+    }
+
+    async function loadGainers() {
+        const tbody = document.getElementById("gainers-body");
+        tbody.innerHTML = `<tr><td colspan="6" class="loading">Cargando gainers...</td></tr>`;
+
+        try {
+            const res = await fetch("/api/gainers");
+            const data = await res.json();
+            renderTable(Array.isArray(data) ? data : (data.data || []), "gainers-body", "gainers-status");
+        } catch (error) {
+            tbody.innerHTML = `<tr><td colspan="6" class="error">Error cargando gainers</td></tr>`;
+            document.getElementById("gainers-status").textContent = "Error";
         }
+    }
 
-        function formatPercent(value) {
-            if (value === null || value === undefined || value === "" || isNaN(value)) return "N/A";
-            const num = Number(value);
-            return `${num >= 0 ? "+" : ""}${num.toFixed(2)}%`;
+    async function loadMomentum() {
+        const tbody = document.getElementById("momentum-body");
+        tbody.innerHTML = `<tr><td colspan="6" class="loading">Cargando momentum...</td></tr>`;
+
+        try {
+            const res = await fetch("/api/momentum");
+            const data = await res.json();
+            renderTable(Array.isArray(data) ? data : (data.data || []), "momentum-body", "momentum-status");
+        } catch (error) {
+            tbody.innerHTML = `<tr><td colspan="6" class="error">Error cargando momentum</td></tr>`;
+            document.getElementById("momentum-status").textContent = "Error";
         }
+    }
 
-        function getRankClass(rank) {
-            if (rank === 1) return "rank-1";
-            if (rank === 2) return "rank-2";
-            if (rank === 3) return "rank-3";
-            return "";
-        }
+    async function loadAllData() {
+        await Promise.all([loadGainers(), loadMomentum()]);
+    }
 
-        function percentToBg(percent) {
-            const p = Number(percent || 0);
-            const alpha = Math.min(0.18 + (Math.abs(p) / 50), 0.85);
-            return p >= 0 ? `rgba(34,197,94,${alpha})` : `rgba(239,68,68,${alpha})`;
-        }
+    function toggleScore() {
+        showScore = !showScore;
+        document.querySelectorAll(".score-col").forEach(el => {
+            el.style.display = showScore ? "" : "none";
+        });
+    }
 
-        function percentToBorder(percent) {
-            const p = Number(percent || 0);
-            const alpha = Math.min(0.25 + (Math.abs(p) / 60), 0.95);
-            return p >= 0 ? `rgba(34,197,94,${alpha})` : `rgba(239,68,68,${alpha})`;
-        }
-
-        function computeScore(item) {
-            const pct = Number(item.change_percent || 0);
-            const volume = Number(item.volume || 0);
-            const volumeFactor = volume > 0 ? Math.log10(volume + 1) * 10 : 0;
-            return ((pct * 0.7) + (volumeFactor * 0.3)).toFixed(1);
-        }
-
-        function normalizeItem(item) {
-            return {
-                symbol: item.symbol || item.ticker || "N/A",
-                company: item.company || item.companyName || "",
-                price: item.price ?? item.last_price ?? null,
-                change_percent: item.change_percent ?? item.percent_change ?? item.changePct ?? 0,
-                volume: item.volume ?? item.current_volume ?? 0,
-                score: item.score,
-                rank: item.rank
-            };
-        }
-
-        function renderTable(items, tbodyId, statusId) {
-            const tbody = document.getElementById(tbodyId);
-            const status = document.getElementById(statusId);
-
-            if (!items || !items.length) {
-                tbody.innerHTML = `<tr><td colspan="6" class="gainers-empty">Sin datos</td></tr>`;
-                status.textContent = "Sin datos";
-                return;
-            }
-
-            const normalized = items.map(normalizeItem);
-
-            tbody.innerHTML = normalized.map((item, index) => {
-                const rank = item.rank || (index + 1);
-                const score = item.score !== undefined ? item.score : computeScore(item);
-                const pctBg = percentToBg(item.change_percent);
-                const pctBorder = percentToBorder(item.change_percent);
-
-                return `
-                    <tr class="${rank === 1 ? 'top-row' : ''}">
-                        <td><span class="rank-badge ${getRankClass(rank)}">#${rank}</span></td>
-                        <td>
-                            <div class="g-ticker">${item.symbol}</div>
-                            <div class="g-company">${item.company || ""}</div>
-                        </td>
-                        <td>${formatPrice(item.price)}</td>
-                        <td>
-                            <span class="pct-pill" style="background:${pctBg}; border-color:${pctBorder};">
-                                ${formatPercent(item.change_percent)}
-                            </span>
-                        </td>
-                        <td>${formatNumber(item.volume)}</td>
-                        <td class="score-col"><span class="score-pill">${score}</span></td>
-                    </tr>
-                `;
-            }).join("");
-
-            status.textContent = `Actualizado: ${new Date().toLocaleTimeString("es-ES")}`;
-        }
-
-        async function loadGainers() {
-            const tbody = document.getElementById("gainers-body");
-            tbody.innerHTML = `<tr><td colspan="6" class="gainers-empty">Cargando gainers...</td></tr>`;
-
-            try {
-                const res = await fetch("/api/gainers");
-                const data = await res.json();
-                renderTable(Array.isArray(data) ? data : (data.data || []), "gainers-body", "gainers-status");
-            } catch (error) {
-                tbody.innerHTML = `<tr><td colspan="6" class="gainers-empty">Error cargando gainers</td></tr>`;
-                document.getElementById("gainers-status").textContent = "Error";
-            }
-        }
-
-        async function loadMomentum() {
-            const tbody = document.getElementById("momentum-body");
-            tbody.innerHTML = `<tr><td colspan="6" class="gainers-empty">Cargando momentum...</td></tr>`;
-
-            try {
-                const res = await fetch("/api/momentum");
-                const data = await res.json();
-                renderTable(Array.isArray(data) ? data : (data.data || []), "momentum-body", "momentum-status");
-            } catch (error) {
-                tbody.innerHTML = `<tr><td colspan="6" class="gainers-empty">Error cargando momentum</td></tr>`;
-                document.getElementById("momentum-status").textContent = "Error";
-            }
-        }
-
-        async function loadAllData() {
-            await Promise.all([loadGainers(), loadMomentum()]);
-        }
-
-        function toggleScore() {
-            showScore = !showScore;
-            document.querySelectorAll(".score-col").forEach(el => {
-                el.style.display = showScore ? "" : "none";
+    function initTradingView() {
+        if (typeof TradingView !== "undefined") {
+            new TradingView.widget({
+                autosize: true,
+                symbol: "AMEX:SPY",
+                interval: "15",
+                timezone: "Europe/Madrid",
+                theme: "dark",
+                style: "1",
+                locale: "es",
+                toolbar_bg: "#0f172a",
+                enable_publishing: false,
+                hide_side_toolbar: false,
+                allow_symbol_change: true,
+                container_id: "tradingview_chart"
             });
         }
+    }
 
-        function initTradingView() {
-            if (typeof TradingView !== "undefined") {
-                new TradingView.widget({
-                    autosize: true,
-                    symbol: "{{ chart_symbol or 'AMEX:SPY' }}",
-                    interval: "15",
-                    timezone: "Europe/Madrid",
-                    theme: "dark",
-                    style: "1",
-                    locale: "es",
-                    toolbar_bg: "#0f172a",
-                    enable_publishing: false,
-                    hide_top_toolbar: false,
-                    allow_symbol_change: true,
-                    container_id: "tradingview_chart"
-                });
-            }
-        }
+    loadAllData();
+    initTradingView();
+    setInterval(loadAllData, 60000);
+</script>
 
-        loadAllData();
-        initTradingView();
-        setInterval(loadAllData, 60000);
-    </script>
 </body>
 </html>
