@@ -1950,17 +1950,24 @@ def trade_history():
     conn.close()
 
     rows = ""
+    rows = ""
     for t in trades:
-        color = "#00ff9c" if t[6] > 0 else "#ff4d4d"
+        try:
+            pnl = float(t[6])
+        except:
+            pnl = 0
+
+        color = "#00ff9c" if pnl > 0 else "#ff4d4d"
+
         rows += f"""
         <tr>
-            <td>{t[0]}</td>
-            <td>{t[1]}</td>
-            <td>{t[2]}</td>
-            <td>{t[3]}</td>
-            <td>{t[4]}</td>
-            <td>{t[5]}</td>
-            <td style="color:{color}">{t[6]}</td>
+            <td>{t[0] or ''}</td>
+            <td>{t[1] or ''}</td>
+            <td>{t[2] or ''}</td>
+            <td>{t[3] or ''}</td>
+            <td>{t[4] or ''}</td>
+            <td>{t[5] or ''}</td>
+            <td style="color:{color}">{pnl}</td>
         </tr>
         """
 
