@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2>Import Trades</h2>
+
+    <form method="POST" enctype="multipart/form-data" class="upload-box">
+        <input type="file" name="file" required>
+        <button type="submit">Upload CSV</button>
+    </form>
+</div>
+
+<style>
+.upload-box {
+    margin-top: 20px;
+    padding: 30px;
+    border: 1px dashed #444;
+    border-radius: 10px;
+    text-align: center;
+}
+</style>
+{% endblock %}
