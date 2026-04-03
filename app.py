@@ -93,7 +93,7 @@ else:
 
 os.makedirs(PERSISTENT_DIR, exist_ok=True)
 
-DB_FILE = os.environ.get("DB_FILE", os.path.join(PERSISTENT_DIR, "app_v2.db"))
+DB_FILE = os.environ.get("DB_FILE", os.path.join(PERSISTENT_DIR, "app.db"))
 STORAGE_FILE = os.environ.get("STORAGE_FILE", os.path.join(PERSISTENT_DIR, "storage.json"))
 
 print("🔥 PERSISTENT_DIR =", PERSISTENT_DIR)
