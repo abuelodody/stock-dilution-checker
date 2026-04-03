@@ -1945,7 +1945,7 @@ def trade_history():
         SELECT date, symbol, side, shares, entry, exit, pnl
         FROM trades
         ORDER BY date DESC
-    """).fetchall()
+    """).fetchall() or []
 
     conn.close()
 
