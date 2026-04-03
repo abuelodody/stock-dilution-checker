@@ -1791,6 +1791,9 @@ def render_main_menu(active_page="analyzer"):
         ("Gainers", url_for("gainers_page"), active_page == "gainers"),
         ("Analyzer", url_for("home"), active_page == "analyzer"),
         ("Gap Stats", url_for("gap_stats_page"), active_page == "gap_stats"),
+
+        ("Import Trades", url_for("import_trades"), active_page == "import_trades"),
+        ("Trade History", url_for("trade_history"), active_page == "trade_history"),
     ]
 
     if current_user.is_authenticated and current_user.is_admin:
