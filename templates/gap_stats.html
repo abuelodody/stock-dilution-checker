@@ -4,41 +4,210 @@
     <meta charset="UTF-8">
     <title>Gap Stats</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <style>
+        html, body {
+            overflow-x: hidden;
+        }
+
+        .main-content {
+            overflow-x: hidden;
+        }
+
+        .gap-stats-wrap {
+            width: 100%;
+            max-width: 100%;
+            overflow-x: hidden;
+            box-sizing: border-box;
+        }
+
+        .gap-table-wrap {
+            width: 100%;
+            max-width: 100%;
+            overflow-x: auto;
+            overflow-y: hidden;
+            box-sizing: border-box;
+        }
+
+        .gap-stats-form-grid {
+            display: grid;
+            grid-template-columns: 1.2fr 1fr 1fr 1fr auto;
+            gap: 12px;
+            align-items: end;
+        }
+
+        @media (max-width: 1200px) {
+            .gap-stats-form-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .gap-compact-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .gap-compact-table th,
+        .gap-compact-table td {
+            padding: 8px 10px;
+            white-space: nowrap;
+        }
+
+        .gap-compact-table th {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+        }
+
+        .gap-chart-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 18px;
+            margin-bottom: 24px;
+        }
+
+        @media (max-width: 1100px) {
+            .gap-chart-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .gap-chart-card {
+            background: rgba(15, 23, 42, 0.65);
+            border: 1px solid rgba(148, 163, 184, 0.15);
+            border-radius: 16px;
+            padding: 16px;
+        }
+
+        .gap-chart-title {
+            font-size: 15px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            color: #e2e8f0;
+        }
+
+        .gap-chart-canvas-wrap {
+            position: relative;
+            height: 280px;
+            width: 100%;
+        }
+
+        .bias-box {
+            border-radius: 16px;
+            padding: 18px;
+            margin-bottom: 24px;
+            border: 1px solid rgba(148, 163, 184, 0.18);
+        }
+
+        .bias-long {
+            background: rgba(34, 197, 94, 0.12);
+        }
+
+        .bias-short {
+            background: rgba(239, 68, 68, 0.12);
+        }
+
+        .bias-mixed {
+            background: rgba(245, 158, 11, 0.12);
+        }
+
+        .bias-neutral {
+            background: rgba(100, 116, 139, 0.18);
+        }
+
+        .bias-title {
+            font-size: 20px;
+            font-weight: 800;
+            margin-bottom: 6px;
+        }
+
+        .bias-reason {
+            color: #cbd5e1;
+            font-size: 14px;
+        }
+
+        .bias-long .bias-title {
+            color: #22c55e;
+        }
+
+        .bias-short .bias-title {
+            color: #ef4444;
+        }
+
+        .bias-mixed .bias-title {
+            color: #f59e0b;
+        }
+
+        .bias-neutral .bias-title {
+            color: #cbd5e1;
+        }
+
+        .gap-page-block {
+            width: 100%;
+        }
+    </style>
+
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
+
 <body>
-    <div class="app-shell">
-        <aside class="main-sidebar">
-            <div class="main-sidebar-title">Small Cap Tool</div>
-            <div class="main-nav">
-                {{ main_menu_html|safe }}
-            </div>
-        </aside>
 
-        <main class="main-content">
-            <div class="gap-page">
-                <div class="section-card gap-page-card">
-                    <h2 class="gap-page-title">Gap Stats</h2>
+<div class="app-shell">
 
-                    <div class="gap-stats-wrap">
-                        <form method="POST" class="gap-form">
+    <aside class="main-sidebar">
+        <div class="main-sidebar-title">Small Cap Tool</div>
+
+        <div class="main-nav">
+            {{ main_menu_html|safe }}
+        </div>
+
+        <div class="sidebar-card" style="margin-top: 20px;">
+            <div class="sidebar-title">Favorites</div>
+            {{ sidebar_html|safe }}
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <div class="container">
+
+            <div class="main-title">Gap Stats</div>
+
+            <div class="layout">
+                <div class="gap-page-block">
+
+                    <div class="card-block" style="margin-bottom: 24px;">
+                        <form method="POST">
                             <div class="gap-stats-form-grid">
+
                                 <div>
-                                    <label class="gap-label">Ticker</label>
-                                    <input type="text" name="ticker" value="{{ ticker }}" placeholder="Ej: ELAB" class="gap-input">
+                                    <label>Ticker</label>
+                                    <input
+                                        type="text"
+                                        name="ticker"
+                                        value="{{ ticker }}"
+                                        placeholder="Ej: ELAB"
+                                        style="width:100%; padding:12px; border-radius:10px; border:1px solid #334155; background:#0f172a; color:white;"
+                                    >
                                 </div>
 
                                 <div>
-                                    <label class="gap-label">Tipo</label>
-                                    <select name="gap_type" class="gap-select">
+                                    <label>Tipo</label>
+                                    <select
+                                        name="gap_type"
+                                        style="width:100%; padding:12px; border-radius:10px; border:1px solid #334155; background:#0f172a; color:white;"
+                                    >
                                         <option value="up" {% if gap_type=="up" %}selected{% endif %}>Gap Up</option>
                                         <option value="down" {% if gap_type=="down" %}selected{% endif %}>Gap Down</option>
                                     </select>
                                 </div>
 
                                 <div>
-                                    <label class="gap-label">Gap mínimo</label>
-                                    <select name="gap_percent" class="gap-select">
+                                    <label>Gap mínimo</label>
+                                    <select
+                                        name="gap_percent"
+                                        style="width:100%; padding:12px; border-radius:10px; border:1px solid #334155; background:#0f172a; color:white;"
+                                    >
                                         <option value="5" {% if gap_percent=="5" %}selected{% endif %}>5%</option>
                                         <option value="10" {% if gap_percent=="10" %}selected{% endif %}>10%</option>
                                         <option value="20" {% if gap_percent=="20" %}selected{% endif %}>20%</option>
@@ -46,8 +215,11 @@
                                 </div>
 
                                 <div>
-                                    <label class="gap-label">Período</label>
-                                    <select name="period_key" class="gap-select">
+                                    <label>Período</label>
+                                    <select
+                                        name="period_key"
+                                        style="width:100%; padding:12px; border-radius:10px; border:1px solid #334155; background:#0f172a; color:white;"
+                                    >
                                         <option value="6m" {% if period_key=="6m" %}selected{% endif %}>6 meses</option>
                                         <option value="1y" {% if period_key=="1y" %}selected{% endif %}>1 año</option>
                                         <option value="2y" {% if period_key=="2y" %}selected{% endif %}>2 años</option>
@@ -55,275 +227,325 @@
                                     </select>
                                 </div>
 
-                                <div class="gap-button-wrap">
-                                    <button type="submit" class="gap-submit-btn">Analizar</button>
+                                <div>
+                                    <button
+                                        type="submit"
+                                        style="padding:12px 18px; border:none; border-radius:10px; cursor:pointer;"
+                                    >
+                                        Analizar
+                                    </button>
                                 </div>
+
                             </div>
                         </form>
-
-                        {% if error %}
-                        <div class="empty-box">{{ error }}</div>
-                        {% endif %}
-
-                        {% if result %}
-                        {% set stats = result.stats %}
-                        {% set bias = result.bias %}
-
-                        <div class="bias-box {{ bias.class }}">
-                            <div class="bias-title">{{ bias.label }}</div>
-                            <div class="bias-reason">{{ bias.reason }}</div>
-                        </div>
-
-                        <div class="metrics-grid" style="margin-bottom: 24px;">
-                            <div class="metric-card"><div class="metric-title">Ticker</div><div class="metric-value">{{ stats.ticker }}</div></div>
-                            <div class="metric-card"><div class="metric-title">Tipo</div><div class="metric-value">{{ stats.gap_type_label }}</div></div>
-                            <div class="metric-card"><div class="metric-title">Período</div><div class="metric-value">{{ stats.period_label }}</div></div>
-                            <div class="metric-card"><div class="metric-title">Gap mínimo</div><div class="metric-value">{{ stats.gap_percent }}%</div></div>
-                            <div class="metric-card"><div class="metric-title">Días gap</div><div class="metric-value">{{ stats.gap_days }}</div></div>
-                            <div class="metric-card"><div class="metric-title">Green</div><div class="metric-value">{{ stats.green_pct }}%</div></div>
-                            <div class="metric-card"><div class="metric-title">Red</div><div class="metric-value">{{ stats.red_pct }}%</div></div>
-                            <div class="metric-card"><div class="metric-title">Hold Gap</div><div class="metric-value">{{ stats.hold_gap_pct }}%</div></div>
-                            <div class="metric-card"><div class="metric-title">Fill Gap</div><div class="metric-value">{{ stats.fill_gap_pct }}%</div></div>
-                        </div>
-
-                        <div class="gap-chart-grid">
-                            <div class="gap-chart-card">
-                                <div class="gap-chart-title">Distribución de cierres</div>
-                                <div class="gap-chart-canvas-wrap">
-                                    <canvas id="closeDistChart"></canvas>
-                                </div>
-                            </div>
-
-                            <div class="gap-chart-card">
-                                <div class="gap-chart-title">Hold Gap vs Fill Gap</div>
-                                <div class="gap-chart-canvas-wrap">
-                                    <canvas id="gapBehaviorChart"></canvas>
-                                </div>
-                            </div>
-
-                            <div class="gap-chart-card">
-                                <div class="gap-chart-title">Promedios del movimiento</div>
-                                <div class="gap-chart-canvas-wrap">
-                                    <canvas id="avgMovesChart"></canvas>
-                                </div>
-                            </div>
-
-                            <div class="gap-chart-card">
-                                <div class="gap-chart-title">Resumen por tramos</div>
-                                <div class="gap-chart-canvas-wrap">
-                                    <canvas id="bucketSummaryChart"></canvas>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="card-block gap-card-block">
-                            <div class="subsection-title">Resumen por tramos</div>
-
-                            <div class="gap-table-wrap">
-                                <table class="screener-table gap-compact-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Tramo</th>
-                                            <th>Nº eventos</th>
-                                            <th>% Green</th>
-                                            <th>% Red</th>
-                                            <th>% Hold Gap</th>
-                                            <th>% Fill Gap</th>
-                                            <th>Avg Open→Close</th>
-                                            <th>Avg Close vs PrevClose</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {% for row in result.bucket_summary %}
-                                        <tr>
-                                            <td>{{ row.bucket }}</td>
-                                            <td>{{ row.count }}</td>
-                                            <td style="color:#22c55e; font-weight:700;">{{ row.green_pct }}%</td>
-                                            <td style="color:#ef4444; font-weight:700;">{{ row.red_pct }}%</td>
-                                            <td style="color:#38bdf8; font-weight:700;">{{ row.hold_gap_pct }}%</td>
-                                            <td style="color:#f59e0b; font-weight:700;">{{ row.fill_gap_pct }}%</td>
-                                            <td style="color:{% if row.avg_open_to_close_pct and row.avg_open_to_close_pct > 0 %}#22c55e{% elif row.avg_open_to_close_pct and row.avg_open_to_close_pct < 0 %}#ef4444{% else %}#cbd5e1{% endif %}; font-weight:700;">
-                                                {{ row.avg_open_to_close_pct if row.avg_open_to_close_pct is not none else "-" }}%
-                                            </td>
-                                            <td style="color:{% if row.avg_close_vs_prev_close_pct and row.avg_close_vs_prev_close_pct > 0 %}#22c55e{% elif row.avg_close_vs_prev_close_pct and row.avg_close_vs_prev_close_pct < 0 %}#ef4444{% else %}#cbd5e1{% endif %}; font-weight:700;">
-                                                {{ row.avg_close_vs_prev_close_pct if row.avg_close_vs_prev_close_pct is not none else "-" }}%
-                                            </td>
-                                        </tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-
-                        <div class="card-block gap-card-block">
-                            <div class="subsection-title">Eventos</div>
-
-                            <div class="gap-table-wrap">
-                                <table class="screener-table gap-compact-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Fecha</th>
-                                            <th>Open</th>
-                                            <th>Close</th>
-                                            <th>Gap %</th>
-                                            <th>O→C %</th>
-                                            <th>O→H %</th>
-                                            <th>O→L %</th>
-                                            <th>Close vs Prev</th>
-                                            <th>Hold</th>
-                                            <th>Fill</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {% for row in result.events %}
-                                        <tr>
-                                            <td>{{ row.date }}</td>
-                                            <td>{{ row.open }}</td>
-                                            <td>{{ row.close }}</td>
-                                            <td style="color:#f59e0b; font-weight:700;">{{ row.gap_pct }}%</td>
-                                            <td style="color:{% if row.open_to_close_pct > 0 %}#22c55e{% elif row.open_to_close_pct < 0 %}#ef4444{% else %}#cbd5e1{% endif %}; font-weight:700;">
-                                                {{ row.open_to_close_pct }}%
-                                            </td>
-                                            <td style="color:#22c55e; font-weight:700;">{{ row.open_to_high_pct }}%</td>
-                                            <td style="color:#ef4444; font-weight:700;">{{ row.open_to_low_pct }}%</td>
-                                            <td style="color:{% if row.close_vs_prev_close_pct > 0 %}#22c55e{% elif row.close_vs_prev_close_pct < 0 %}#ef4444{% else %}#cbd5e1{% endif %}; font-weight:700;">
-                                                {{ row.close_vs_prev_close_pct }}%
-                                            </td>
-                                            <td>{% if row.holds_gap %}✔{% else %}✖{% endif %}</td>
-                                            <td>{% if row.fills_gap %}✔{% else %}✖{% endif %}</td>
-                                        </tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-
-                        <script>
-                            const closeDistLabels = ["Green", "Red", "Flat"];
-                            const closeDistData = [{{ stats.green_closes }}, {{ stats.red_closes }}, {{ stats.flat_closes }}];
-
-                            const gapBehaviorLabels = ["Hold Gap", "Fill Gap"];
-                            const gapBehaviorData = [{{ stats.hold_gap_count }}, {{ stats.fill_gap_count }}];
-
-                            const avgMovesLabels = ["Open→Close", "Open→High", "Open→Low", "Close vs Prev"];
-                            const avgMovesData = [
-                                {{ stats.avg_open_to_close_pct if stats.avg_open_to_close_pct is not none else 0 }},
-                                {{ stats.avg_open_to_high_pct if stats.avg_open_to_high_pct is not none else 0 }},
-                                {{ stats.avg_open_to_low_pct if stats.avg_open_to_low_pct is not none else 0 }},
-                                {{ stats.avg_close_vs_prev_close_pct if stats.avg_close_vs_prev_close_pct is not none else 0 }}
-                            ];
-
-                            const bucketLabels = [
-                                {% for row in result.bucket_summary %}
-                                    "{{ row.bucket }}"{% if not loop.last %},{% endif %}
-                                {% endfor %}
-                            ];
-
-                            const bucketGreenData = [
-                                {% for row in result.bucket_summary %}
-                                    {{ row.green_pct if row.green_pct is not none else 0 }}{% if not loop.last %},{% endif %}
-                                {% endfor %}
-                            ];
-
-                            const bucketRedData = [
-                                {% for row in result.bucket_summary %}
-                                    {{ row.red_pct if row.red_pct is not none else 0 }}{% if not loop.last %},{% endif %}
-                                {% endfor %}
-                            ];
-
-                            const chartGridColor = "rgba(148, 163, 184, 0.15)";
-                            const tickColor = "#cbd5e1";
-
-                            new Chart(document.getElementById("closeDistChart"), {
-                                type: "bar",
-                                data: {
-                                    labels: closeDistLabels,
-                                    datasets: [{
-                                        label: "Nº eventos",
-                                        data: closeDistData,
-                                        backgroundColor: ["#22c55e", "#ef4444", "#64748b"]
-                                    }]
-                                },
-                                options: {
-                                    responsive: true,
-                                    maintainAspectRatio: false,
-                                    plugins: { legend: { display: false } },
-                                    scales: {
-                                        x: { ticks: { color: tickColor }, grid: { color: chartGridColor } },
-                                        y: { beginAtZero: true, ticks: { color: tickColor }, grid: { color: chartGridColor } }
-                                    }
-                                }
-                            });
-
-                            new Chart(document.getElementById("gapBehaviorChart"), {
-                                type: "bar",
-                                data: {
-                                    labels: gapBehaviorLabels,
-                                    datasets: [{
-                                        label: "Nº eventos",
-                                        data: gapBehaviorData,
-                                        backgroundColor: ["#38bdf8", "#f59e0b"]
-                                    }]
-                                },
-                                options: {
-                                    responsive: true,
-                                    maintainAspectRatio: false,
-                                    plugins: { legend: { display: false } },
-                                    scales: {
-                                        x: { ticks: { color: tickColor }, grid: { color: chartGridColor } },
-                                        y: { beginAtZero: true, ticks: { color: tickColor }, grid: { color: chartGridColor } }
-                                    }
-                                }
-                            });
-
-                            new Chart(document.getElementById("avgMovesChart"), {
-                                type: "bar",
-                                data: {
-                                    labels: avgMovesLabels,
-                                    datasets: [{
-                                        label: "% medio",
-                                        data: avgMovesData,
-                                        backgroundColor: ["#22c55e", "#22c55e", "#ef4444", "#3b82f6"]
-                                    }]
-                                },
-                                options: {
-                                    responsive: true,
-                                    maintainAspectRatio: false,
-                                    plugins: { legend: { display: false } },
-                                    scales: {
-                                        x: { ticks: { color: tickColor }, grid: { color: chartGridColor } },
-                                        y: { ticks: { color: tickColor }, grid: { color: chartGridColor } }
-                                    }
-                                }
-                            });
-
-                            new Chart(document.getElementById("bucketSummaryChart"), {
-                                type: "bar",
-                                data: {
-                                    labels: bucketLabels,
-                                    datasets: [
-                                        { label: "% Green", data: bucketGreenData, backgroundColor: "#22c55e" },
-                                        { label: "% Red", data: bucketRedData, backgroundColor: "#ef4444" }
-                                    ]
-                                },
-                                options: {
-                                    responsive: true,
-                                    maintainAspectRatio: false,
-                                    plugins: {
-                                        legend: { labels: { color: tickColor } }
-                                    },
-                                    scales: {
-                                        x: { ticks: { color: tickColor }, grid: { color: chartGridColor } },
-                                        y: { beginAtZero: true, ticks: { color: tickColor }, grid: { color: chartGridColor } }
-                                    }
-                                }
-                            });
-                        </script>
-                        {% endif %}
                     </div>
+
+                    {% if error %}
+                    <div class="empty-box">{{ error }}</div>
+                    {% endif %}
+
+                    {% if result %}
+                    {% set stats = result.stats %}
+                    {% set bias = result.bias %}
+
+                    <div class="bias-box {{ bias.class }}">
+                        <div class="bias-title">{{ bias.label }}</div>
+                        <div class="bias-reason">{{ bias.reason }}</div>
+                    </div>
+
+                    <div class="metrics-grid" style="margin-bottom: 24px;">
+                        <div class="metric-card"><div class="metric-title">Ticker</div><div class="metric-value">{{ stats.ticker }}</div></div>
+                        <div class="metric-card"><div class="metric-title">Tipo</div><div class="metric-value">{{ stats.gap_type_label }}</div></div>
+                        <div class="metric-card"><div class="metric-title">Período</div><div class="metric-value">{{ stats.period_label }}</div></div>
+                        <div class="metric-card"><div class="metric-title">Gap mínimo</div><div class="metric-value">{{ stats.gap_percent }}%</div></div>
+                        <div class="metric-card"><div class="metric-title">Días gap</div><div class="metric-value">{{ stats.gap_days }}</div></div>
+                        <div class="metric-card"><div class="metric-title">Green</div><div class="metric-value">{{ stats.green_pct }}%</div></div>
+                        <div class="metric-card"><div class="metric-title">Red</div><div class="metric-value">{{ stats.red_pct }}%</div></div>
+                        <div class="metric-card"><div class="metric-title">Hold Gap</div><div class="metric-value">{{ stats.hold_gap_pct }}%</div></div>
+                        <div class="metric-card"><div class="metric-title">Fill Gap</div><div class="metric-value">{{ stats.fill_gap_pct }}%</div></div>
+                    </div>
+
+                    <div class="gap-chart-grid">
+
+                        <div class="gap-chart-card">
+                            <div class="gap-chart-title">Distribución de cierres</div>
+                            <div class="gap-chart-canvas-wrap">
+                                <canvas id="closeDistChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="gap-chart-card">
+                            <div class="gap-chart-title">Hold Gap vs Fill Gap</div>
+                            <div class="gap-chart-canvas-wrap">
+                                <canvas id="gapBehaviorChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="gap-chart-card">
+                            <div class="gap-chart-title">Promedios del movimiento</div>
+                            <div class="gap-chart-canvas-wrap">
+                                <canvas id="avgMovesChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="gap-chart-card">
+                            <div class="gap-chart-title">Resumen por tramos</div>
+                            <div class="gap-chart-canvas-wrap">
+                                <canvas id="bucketSummaryChart"></canvas>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <div class="card-block" style="margin-bottom: 24px;">
+                        <div class="subsection-title">Resumen por tramos</div>
+
+                        <div class="gap-table-wrap">
+                            <table class="screener-table gap-compact-table">
+                                <thead>
+                                    <tr>
+                                        <th>Tramo</th>
+                                        <th>Nº eventos</th>
+                                        <th>% Green</th>
+                                        <th>% Red</th>
+                                        <th>% Hold Gap</th>
+                                        <th>% Fill Gap</th>
+                                        <th>Avg Open→Close</th>
+                                        <th>Avg Close vs PrevClose</th>
+                                    </tr>
+                                </thead>
+
+                                <tbody>
+                                    {% for row in result.bucket_summary %}
+                                    <tr>
+                                        <td>{{ row.bucket }}</td>
+                                        <td>{{ row.count }}</td>
+                                        <td style="color:#22c55e; font-weight:700;">{{ row.green_pct }}%</td>
+                                        <td style="color:#ef4444; font-weight:700;">{{ row.red_pct }}%</td>
+                                        <td style="color:#38bdf8; font-weight:700;">{{ row.hold_gap_pct }}%</td>
+                                        <td style="color:#f59e0b; font-weight:700;">{{ row.fill_gap_pct }}%</td>
+                                        <td style="color:{% if row.avg_open_to_close_pct and row.avg_open_to_close_pct > 0 %}#22c55e{% elif row.avg_open_to_close_pct and row.avg_open_to_close_pct < 0 %}#ef4444{% else %}#cbd5e1{% endif %}; font-weight:700;">
+                                            {{ row.avg_open_to_close_pct if row.avg_open_to_close_pct is not none else "-" }}%
+                                        </td>
+                                        <td style="color:{% if row.avg_close_vs_prev_close_pct and row.avg_close_vs_prev_close_pct > 0 %}#22c55e{% elif row.avg_close_vs_prev_close_pct and row.avg_close_vs_prev_close_pct < 0 %}#ef4444{% else %}#cbd5e1{% endif %}; font-weight:700;">
+                                            {{ row.avg_close_vs_prev_close_pct if row.avg_close_vs_prev_close_pct is not none else "-" }}%
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="card-block">
+                        <div class="subsection-title">Eventos</div>
+
+                        <div class="gap-table-wrap">
+                            <table class="screener-table gap-compact-table">
+                                <thead>
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Open</th>
+                                        <th>Close</th>
+                                        <th>Gap %</th>
+                                        <th>O→C %</th>
+                                        <th>O→H %</th>
+                                        <th>O→L %</th>
+                                        <th>Close vs Prev</th>
+                                        <th>Hold</th>
+                                        <th>Fill</th>
+                                    </tr>
+                                </thead>
+
+                                <tbody>
+                                    {% for row in result.events %}
+                                    <tr>
+                                        <td>{{ row.date }}</td>
+                                        <td>{{ row.open }}</td>
+                                        <td>{{ row.close }}</td>
+
+                                        <td style="color:#f59e0b; font-weight:700;">{{ row.gap_pct }}%</td>
+
+                                        <td style="color:{% if row.open_to_close_pct > 0 %}#22c55e{% elif row.open_to_close_pct < 0 %}#ef4444{% else %}#cbd5e1{% endif %}; font-weight:700;">
+                                            {{ row.open_to_close_pct }}%
+                                        </td>
+
+                                        <td style="color:#22c55e; font-weight:700;">{{ row.open_to_high_pct }}%</td>
+                                        <td style="color:#ef4444; font-weight:700;">{{ row.open_to_low_pct }}%</td>
+
+                                        <td style="color:{% if row.close_vs_prev_close_pct > 0 %}#22c55e{% elif row.close_vs_prev_close_pct < 0 %}#ef4444{% else %}#cbd5e1{% endif %}; font-weight:700;">
+                                            {{ row.close_vs_prev_close_pct }}%
+                                        </td>
+
+                                        <td>{% if row.holds_gap %}✔{% else %}✖{% endif %}</td>
+                                        <td>{% if row.fills_gap %}✔{% else %}✖{% endif %}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <script>
+                        const closeDistLabels = ["Green", "Red", "Flat"];
+                        const closeDistData = [
+                            {{ stats.green_closes }},
+                            {{ stats.red_closes }},
+                            {{ stats.flat_closes }}
+                        ];
+
+                        const gapBehaviorLabels = ["Hold Gap", "Fill Gap"];
+                        const gapBehaviorData = [
+                            {{ stats.hold_gap_count }},
+                            {{ stats.fill_gap_count }}
+                        ];
+
+                        const avgMovesLabels = ["Open→Close", "Open→High", "Open→Low", "Close vs Prev"];
+                        const avgMovesData = [
+                            {{ stats.avg_open_to_close_pct if stats.avg_open_to_close_pct is not none else 0 }},
+                            {{ stats.avg_open_to_high_pct if stats.avg_open_to_high_pct is not none else 0 }},
+                            {{ stats.avg_open_to_low_pct if stats.avg_open_to_low_pct is not none else 0 }},
+                            {{ stats.avg_close_vs_prev_close_pct if stats.avg_close_vs_prev_close_pct is not none else 0 }}
+                        ];
+
+                        const bucketLabels = [
+                            {% for row in result.bucket_summary %}
+                                "{{ row.bucket }}"{% if not loop.last %},{% endif %}
+                            {% endfor %}
+                        ];
+
+                        const bucketGreenData = [
+                            {% for row in result.bucket_summary %}
+                                {{ row.green_pct if row.green_pct is not none else 0 }}{% if not loop.last %},{% endif %}
+                            {% endfor %}
+                        ];
+
+                        const bucketRedData = [
+                            {% for row in result.bucket_summary %}
+                                {{ row.red_pct if row.red_pct is not none else 0 }}{% if not loop.last %},{% endif %}
+                            {% endfor %}
+                        ];
+
+                        const chartGridColor = "rgba(148, 163, 184, 0.15)";
+                        const tickColor = "#cbd5e1";
+
+                        new Chart(document.getElementById("closeDistChart"), {
+                            type: "bar",
+                            data: {
+                                labels: closeDistLabels,
+                                datasets: [{
+                                    label: "Nº eventos",
+                                    data: closeDistData,
+                                    backgroundColor: [
+                                        "#22c55e",
+                                        "#ef4444",
+                                        "#64748b"
+                                    ]
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: { legend: { display: false } },
+                                scales: {
+                                    x: { ticks: { color: tickColor }, grid: { color: chartGridColor } },
+                                    y: { beginAtZero: true, ticks: { color: tickColor }, grid: { color: chartGridColor } }
+                                }
+                            }
+                        });
+
+                        new Chart(document.getElementById("gapBehaviorChart"), {
+                            type: "bar",
+                            data: {
+                                labels: gapBehaviorLabels,
+                                datasets: [{
+                                    label: "Nº eventos",
+                                    data: gapBehaviorData,
+                                    backgroundColor: [
+                                        "#38bdf8",
+                                        "#f59e0b"
+                                    ]
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: { legend: { display: false } },
+                                scales: {
+                                    x: { ticks: { color: tickColor }, grid: { color: chartGridColor } },
+                                    y: { beginAtZero: true, ticks: { color: tickColor }, grid: { color: chartGridColor } }
+                                }
+                            }
+                        });
+
+                        new Chart(document.getElementById("avgMovesChart"), {
+                            type: "bar",
+                            data: {
+                                labels: avgMovesLabels,
+                                datasets: [{
+                                    label: "% medio",
+                                    data: avgMovesData,
+                                    backgroundColor: [
+                                        "#22c55e",
+                                        "#22c55e",
+                                        "#ef4444",
+                                        "#3b82f6"
+                                    ]
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: { legend: { display: false } },
+                                scales: {
+                                    x: { ticks: { color: tickColor }, grid: { color: chartGridColor } },
+                                    y: { ticks: { color: tickColor }, grid: { color: chartGridColor } }
+                                }
+                            }
+                        });
+
+                        new Chart(document.getElementById("bucketSummaryChart"), {
+                            type: "bar",
+                            data: {
+                                labels: bucketLabels,
+                                datasets: [
+                                    {
+                                        label: "% Green",
+                                        data: bucketGreenData,
+                                        backgroundColor: "#22c55e"
+                                    },
+                                    {
+                                        label: "% Red",
+                                        data: bucketRedData,
+                                        backgroundColor: "#ef4444"
+                                    }
+                                ]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    legend: {
+                                        labels: { color: tickColor }
+                                    }
+                                },
+                                scales: {
+                                    x: { ticks: { color: tickColor }, grid: { color: chartGridColor } },
+                                    y: { beginAtZero: true, ticks: { color: tickColor }, grid: { color: chartGridColor } }
+                                }
+                            }
+                        });
+                    </script>
+
+                    {% endif %}
+
                 </div>
             </div>
-        </main>
-    </div>
+
+        </div>
+    </main>
+
+</div>
+
 </body>
 </html>
