@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2>Trade History</h2>
+
+    <table class="trade-table">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Symbol</th>
+                <th>Side</th>
+                <th>Shares</th>
+                <th>Entry</th>
+                <th>Exit</th>
+                <th>PnL</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in trades %}
+            <tr>
+                <td>{{ t[0] }}</td>
+                <td>{{ t[1] }}</td>
+                <td class="{{ 'long' if t[2]=='LONG' else 'short' }}">{{ t[2] }}</td>
+                <td>{{ t[3] }}</td>
+                <td>{{ t[4] }}</td>
+                <td>{{ t[5] }}</td>
+                <td class="{{ 'green' if t[6] > 0 else 'red' }}">
+                    {{ t[6] }}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<style>
+.trade-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.trade-table th, .trade-table td {
+    padding: 10px;
+    border-bottom: 1px solid #222;
+}
+
+.green { color: #00ff9c; }
+.red { color: #ff4d4d; }
+
+.long { color: #00ff9c; }
+.short { color: #ff4d4d; }
+</style>
+{% endblock %}
