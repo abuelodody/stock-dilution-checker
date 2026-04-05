@@ -2812,19 +2812,20 @@ def create_user_route():
 
     return render_template("create_user.html", error=error, success=success, main_menu_html=main_menu_html)
 
+@app.route("/analyzer/<ticker>", methods=["GET"])
+def analyzer_ticker(ticker):
+    return redirect(url_for("home", ticker=ticker.upper()))
 @app.route("/index/<ticker>")
 @login_required
 def analyzer_with_ticker(ticker):
     return redirect(url_for("home", ticker=ticker.upper()))
 
 @app.route("/", methods=["GET", "POST"])
-@app.route("/index", methods=["GET", "POST"])
-@app.route("/index/<ticker>", methods=["GET"])
-def home(ticker=""):
+def home():
     if request.method == "POST":
         ticker = request.form.get("ticker", "").strip().upper()
     else:
-        ticker = (ticker or request.args.get("ticker", "")).strip().upper()
+        ticker = request.args.get("ticker", "").strip().upper()
 
     content = ""
 
