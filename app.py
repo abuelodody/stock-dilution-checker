@@ -2145,7 +2145,7 @@ def login():
 
         if row and check_password_hash(row["password_hash"], password):
             user = User(row["id"], row["username"], bool(row["is_admin"]))
-            login_user(user)
+            login_user(user, remember=True)
 
             if next_page:
                 return redirect(next_page)
@@ -2823,14 +2823,15 @@ def analyzer_with_ticker(ticker):
     return redirect(url_for("home", ticker=ticker.upper()))
 
 @app.route("/", methods=["GET", "POST"])
-@login_required
-def home():
-    ticker = request.args.get("ticker", "").strip().upper()
-
-    content = ""
-
+@app.route("/index", methods=["GET", "POST"])
+@app.route("/index/<ticker>", methods=["GET"])
+def home(ticker=""):
     if request.method == "POST":
         ticker = request.form.get("ticker", "").strip().upper()
+    else:
+        ticker = (ticker or request.args.get("ticker", "")).strip().upper()
+
+    content = ""
 
     if ticker:
 
