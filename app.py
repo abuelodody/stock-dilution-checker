@@ -2134,6 +2134,7 @@ def login():
     if request.method == "POST":
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "").strip()
+        next_page = request.args.get("next")
 
         conn = get_db_connection()
         row = conn.execute(
@@ -2145,7 +2146,11 @@ def login():
         if row and check_password_hash(row["password_hash"], password):
             user = User(row["id"], row["username"], bool(row["is_admin"]))
             login_user(user)
-            return redirect(url_for("gainers_page"))
+
+            if next_page:
+                return redirect(next_page)
+
+            return redirect(url_for("home"))
         else:
             error = "Usuario o contraseña incorrectos"
 
