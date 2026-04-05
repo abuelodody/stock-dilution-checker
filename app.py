@@ -2127,7 +2127,7 @@ def generate_equity_curve_image(trades):
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if current_user.is_authenticated:
-        return redirect(url_for("gainers_page"))
+        return redirect(url_for("home"))
 
     error = None
 
@@ -2812,6 +2812,10 @@ def create_user_route():
 
     return render_template("create_user.html", error=error, success=success, main_menu_html=main_menu_html)
 
+@app.route("/index/<ticker>")
+@login_required
+def analyzer_with_ticker(ticker):
+    return redirect(url_for("home", ticker=ticker.upper()))
 
 @app.route("/", methods=["GET", "POST"])
 @login_required
