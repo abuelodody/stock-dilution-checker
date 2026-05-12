@@ -146,6 +146,63 @@
         .gap-page-block {
             width: 100%;
         }
+
+        .mini-path-grid {
+
+            display: grid;
+
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+
+            gap: 18px;
+
+            margin-top: 12px;
+        }
+
+        @media (max-width: 1200px) {
+
+            .mini-path-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 700px) {
+
+            .mini-path-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .mini-path-card {
+
+            background: rgba(15, 23, 42, 0.65);
+
+            border: 1px solid rgba(148, 163, 184, 0.15);
+
+            border-radius: 14px;
+
+            padding: 12px;
+        }
+
+        .mini-path-title {
+
+            color: #e2e8f0;
+
+            font-size: 13px;
+
+            font-weight: 700;
+
+            margin-bottom: 10px;
+        }
+
+        .mini-chart-wrap {
+
+            position: relative;
+
+            height: 180px;
+
+            width: 100%;
+        }
+
     </style>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -253,6 +310,21 @@
                         <div class="bias-reason">{{ bias.reason }}</div>
                     </div>
 
+                    {% set continuation = result.continuation %}
+
+                    <div class="bias-box {{ continuation.class }}">
+                        <div class="bias-title">
+                            Continuation Score: {{ continuation.score }}/100
+                        </div>
+
+                        <div class="bias-reason">
+                            {{ continuation.label }} |
+                            PM High Break: {{ continuation.pm_high_broken_pct }}% |
+                            Close > PM High: {{ continuation.close_above_pm_high_pct }}% |
+                            ORB High Break: {{ continuation.orb_high_broken_pct }}%
+                        </div>
+                    </div>
+
                     <div class="metrics-grid" style="margin-bottom: 24px;">
                         <div class="metric-card"><div class="metric-title">Ticker</div><div class="metric-value">{{ stats.ticker }}</div></div>
                         <div class="metric-card"><div class="metric-title">Tipo</div><div class="metric-value">{{ stats.gap_type_label }}</div></div>
@@ -308,6 +380,8 @@
                                         <th>Nº eventos</th>
                                         <th>% Green</th>
                                         <th>% Red</th>
+                                        <th>Pattern</th>
+                                        <th>Score</th>
                                         <th>% Hold Gap</th>
                                         <th>% Fill Gap</th>
                                         <th>Avg Open→Close</th>
@@ -337,6 +411,287 @@
                         </div>
                     </div>
 
+                    <div class="card-block" style="margin-bottom: 24px;">
+                        <div class="subsection-title">Ruta del último gap</div>
+
+                        <div class="gap-chart-canvas-wrap" style="height: 320px;">
+                            <canvas id="gapPathChart"></canvas>
+                        </div>
+                    </div>
+
+                                        <div class="card-block" style="margin-bottom: 24px;">
+
+                       <div class="card-block" style="margin-bottom:24px;">
+
+                            <div class="subsection-title">
+                                Patrón promedio de gaps
+                            </div>
+
+                            <div class="gap-chart-canvas-wrap" style="height:340px;">
+                                <canvas id="averageGapChart"></canvas>
+                            </div>
+
+</div>
+                                            <div class="subsection-title">
+                            Rutas históricas de gaps
+                        </div>
+
+                        <div class="mini-path-grid">
+
+                            {% for row in result.events[:12] %}
+
+                            <div class="mini-path-card">
+
+                                <div class="mini-path-title">
+                                    {{ row.date }} | Gap {{ row.gap_pct }}%
+                                </div>
+
+                                <div class="mini-chart-wrap">
+                                    <canvas id="miniPathChart{{ loop.index }}"></canvas>
+                                </div>
+
+                            </div>
+
+                            {% endfor %}
+
+                        </div>
+
+                    </div>
+
+                    <div class="card-block" style="margin-bottom: 24px;">
+                        <div class="subsection-title">Horarios de extremos</div>
+
+                        <div class="gap-table-wrap">
+                            <table class="screener-table gap-compact-table">
+                                <thead>
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>PM High</th>
+                                        <th>PM Low</th>
+                                        <th>Open</th>
+                                        <th>MKT High</th>
+                                        <th>MKT Low</th>
+                                        <th>Close</th>
+                                    </tr>
+                                </thead>
+
+                                <tbody>
+                                    {% for row in result.events %}
+                                    <tr>
+                                        <td>{{ row.date }}</td>
+                                        <td style="color:#22c55e; font-weight:700;">{{ row.pm_high_time if row.pm_high_time else "-" }}</td>
+                                        <td style="color:#ef4444; font-weight:700;">{{ row.pm_low_time if row.pm_low_time else "-" }}</td>
+                                        <td style="color:#cbd5e1; font-weight:700;">{{ row.open_time if row.open_time else "-" }}</td>
+                                        <td style="color:#22c55e; font-weight:700;">{{ row.market_high_time if row.market_high_time else "-" }}</td>
+                                        <td style="color:#ef4444; font-weight:700;">{{ row.market_low_time if row.market_low_time else "-" }}</td>
+                                        <td style="color:#cbd5e1; font-weight:700;">{{ row.close_time if row.close_time else "-" }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="card-block" style="margin-bottom: 24px;">
+                        <div class="subsection-title">Breakout / Breakdown Premarket</div>
+
+                        <div class="gap-table-wrap">
+                            <table class="screener-table gap-compact-table">
+                                <thead>
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Rompe PM High</th>
+                                        <th>Hora Break PM High</th>
+                                        <th>Cierra > PM High</th>
+                                        <th>Pierde PM Low</th>
+                                        <th>Hora Break PM Low</th>
+                                        <th>Cierra < PM Low</th>
+                                    </tr>
+                                </thead>
+
+                                <tbody>
+                                    {% for row in result.events %}
+                                    <tr>
+                                        <td>{{ row.date }}</td>
+
+                                        <td style="font-weight:700; color:{% if row.pm_high_broken %}#22c55e{% else %}#94a3b8{% endif %};">
+                                            {% if row.pm_high_broken %}✔{% else %}✖{% endif %}
+                                        </td>
+
+                                        <td style="font-weight:700; color:#cbd5e1;">
+                                            {{ row.pm_high_break_time if row.pm_high_break_time else "-" }}
+                                        </td>
+
+                                        <td style="font-weight:700; color:{% if row.close_above_pm_high %}#22c55e{% else %}#94a3b8{% endif %};">
+                                            {% if row.close_above_pm_high %}✔{% else %}✖{% endif %}
+                                        </td>
+
+                                        <td style="font-weight:700; color:{% if row.pm_low_broken %}#ef4444{% else %}#94a3b8{% endif %};">
+                                            {% if row.pm_low_broken %}✔{% else %}✖{% endif %}
+                                        </td>
+
+                                        <td style="font-weight:700; color:#cbd5e1;">
+                                            {{ row.pm_low_break_time if row.pm_low_break_time else "-" }}
+                                        </td>
+
+                                        <td style="font-weight:700; color:{% if row.close_below_pm_low %}#ef4444{% else %}#94a3b8{% endif %};">
+                                            {% if row.close_below_pm_low %}✔{% else %}✖{% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="card-block" style="margin-bottom: 24px;">
+                        <div class="subsection-title">ORB 5 minutos</div>
+
+                        <div class="gap-table-wrap">
+                            <table class="screener-table gap-compact-table">
+                                <thead>
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>ORB High</th>
+                                        <th>ORB Low</th>
+                                        <th>Break ORB High</th>
+                                        <th>Hora Break High</th>
+                                        <th>Break ORB Low</th>
+                                        <th>Hora Break Low</th>
+                                    </tr>
+                                </thead>
+
+                                <tbody>
+                                    {% for row in result.events %}
+                                    <tr>
+                                        <td>{{ row.date }}</td>
+                                        <td style="color:#22c55e; font-weight:700;">{{ row.orb_high if row.orb_high else "-" }}</td>
+                                        <td style="color:#ef4444; font-weight:700;">{{ row.orb_low if row.orb_low else "-" }}</td>
+
+                                        <td style="font-weight:700; color:{% if row.orb_high_broken %}#22c55e{% else %}#94a3b8{% endif %};">
+                                            {% if row.orb_high_broken %}✔{% else %}✖{% endif %}
+                                        </td>
+
+                                        <td style="font-weight:700; color:#cbd5e1;">
+                                            {{ row.orb_high_break_time if row.orb_high_break_time else "-" }}
+                                        </td>
+
+                                        <td style="font-weight:700; color:{% if row.orb_low_broken %}#ef4444{% else %}#94a3b8{% endif %};">
+                                            {% if row.orb_low_broken %}✔{% else %}✖{% endif %}
+                                        </td>
+
+                                        <td style="font-weight:700; color:#cbd5e1;">
+                                            {{ row.orb_low_break_time if row.orb_low_break_time else "-" }}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="card-block" style="margin-bottom:24px;">
+                        <div class="subsection-title">
+                            Similar Historical Setups
+                        </div>
+
+                        <div class="gap-table-wrap">
+                            <table class="screener-table gap-compact-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Similarity</th>
+                                        <th>Pattern</th>
+                                        <th>Gap %</th>
+                                        <th>Close vs Prev</th>
+                                        <th>Hold</th>
+                                        <th>Fill</th>
+                                    </tr>
+                                </thead>
+
+                                <tbody>
+
+                                {% for row in result.similarity_matches %}
+
+                                    <tr>
+
+                                        <td>{{ row.date }}</td>
+
+                                        <td style="
+                                            color:
+                                            {% if row.score >= 85 %}
+                                                #22c55e
+                                            {% elif row.score >= 70 %}
+                                                #38bdf8
+                                            {% else %}
+                                                #f59e0b
+                                            {% endif %};
+                                            font-weight:700;
+                                        ">
+                                            {{ row.score }}%
+                                        </td>
+
+                                        <td style="font-weight:700;">
+                                            {{ row.pattern }}
+                                        </td>
+
+                                        <td style="color:#f59e0b; font-weight:700;">
+                                            {{ row.gap_pct }}%
+                                        </td>
+
+                                        <td style="
+                                            color:
+                                            {% if row.close_vs_prev_close_pct > 0 %}
+                                                #22c55e
+                                            {% else %}
+                                                #ef4444
+                                            {% endif %};
+                                            font-weight:700;
+                                        ">
+                                            {{ row.close_vs_prev_close_pct }}%
+                                        </td>
+
+                                        <td>
+                                            {% if row.holds_gap %}
+                                                ✔
+                                            {% else %}
+                                                ✖
+                                            {% endif %}
+                                        </td>
+
+                                        <td>
+                                            {% if row.fills_gap %}
+                                                ✔
+                                            {% else %}
+                                                ✖
+                                            {% endif %}
+                                        </td>
+
+                                    </tr>
+
+                                {% endfor %}
+
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="gap-chart-grid">
+
+                        <div class="gap-chart-card">
+                            <div class="gap-chart-title">Hora del High del día</div>
+                            <div class="gap-chart-canvas-wrap">
+                                <canvas id="highTimeHistogramChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="gap-chart-card">
+                            <div class="gap-chart-title">Hora del Low del día</div>
+                            <div class="gap-chart-canvas-wrap">
+                                <canvas id="lowTimeHistogramChart"></canvas>
+                            </div>
+                        </div>
+
+                    </div>
                     <div class="card-block">
                         <div class="subsection-title">Eventos</div>
 
@@ -351,7 +706,11 @@
                                         <th>O→C %</th>
                                         <th>O→H %</th>
                                         <th>O→L %</th>
+                                        <th>PM High %</th>
+                                        <th>PM Low %</th>
                                         <th>Close vs Prev</th>
+                                        <th>Pattern</th>
+                                        <th>Score</th>
                                         <th>Hold</th>
                                         <th>Fill</th>
                                     </tr>
@@ -370,11 +729,65 @@
                                             {{ row.open_to_close_pct }}%
                                         </td>
 
-                                        <td style="color:#22c55e; font-weight:700;">{{ row.open_to_high_pct }}%</td>
-                                        <td style="color:#ef4444; font-weight:700;">{{ row.open_to_low_pct }}%</td>
+                                        <td style="color:#22c55e; font-weight:700;">
+                                            {{ row.open_to_high_pct }}%
+                                        </td>
+
+                                        <td style="color:#ef4444; font-weight:700;">
+                                            {{ row.open_to_low_pct }}%
+                                        </td>
+
+                                        <td style="color:#22c55e; font-weight:700;">
+                                            {% if row.pm_high_pct is not none %}
+                                                {{ row.pm_high_pct }}%
+                                            {% else %}
+                                                -
+                                            {% endif %}
+                                        </td>
+
+                                        <td style="color:#ef4444; font-weight:700;">
+                                            {% if row.pm_low_pct is not none %}
+                                                {{ row.pm_low_pct }}%
+                                            {% else %}
+                                                -
+                                            {% endif %}
+                                        </td>
 
                                         <td style="color:{% if row.close_vs_prev_close_pct > 0 %}#22c55e{% elif row.close_vs_prev_close_pct < 0 %}#ef4444{% else %}#cbd5e1{% endif %}; font-weight:700;">
                                             {{ row.close_vs_prev_close_pct }}%
+                                        </td>
+                                        </td>
+
+                                        <td style="
+                                            font-weight:700;
+                                            color:
+                                            {% if row.pattern_type == 'Gap & Go' %}
+                                                #22c55e
+                                            {% elif row.pattern_type == 'Gap & Extension' %}
+                                                #84cc16
+                                            {% elif row.pattern_type == 'Runner All Day' %}
+                                                #06b6d4
+                                            {% elif row.pattern_type == 'Early Spike Runner Fade' %}
+                                                #38bdf8
+                                            {% elif row.pattern_type == 'Open Flush Reversal' %}
+                                                #0ea5e9
+                                            {% elif row.pattern_type == 'PM High Fail Fade' %}
+                                                #ef4444
+                                            {% elif row.pattern_type == 'PM Spike Dump' %}
+                                                #f97316
+                                            {% elif row.pattern_type == 'Gap Fade' %}
+                                                #dc2626
+                                            {% elif row.pattern_type == 'Bull Trap' %}
+                                                #fb7185
+                                            {% else %}
+                                                #cbd5e1
+                                            {% endif %}
+                                        ;">
+                                            {{ row.pattern_type }}
+                                        </td>
+
+                                        <td style="font-weight:700; color:#f8fafc;">
+                                            {{ row.pattern_score }}
                                         </td>
 
                                         <td>{% if row.holds_gap %}✔{% else %}✖{% endif %}</td>
@@ -428,6 +841,168 @@
 
                         const chartGridColor = "rgba(148, 163, 184, 0.15)";
                         const tickColor = "#cbd5e1";
+                         const gapPathLabels = [
+                                {% if result.events and result.events[0].path_points %}
+                                    {% for p in result.events[0].path_points %}
+                                        "{{ p.label }} {{ p.time }}"{% if not loop.last %},{% endif %}
+                                    {% endfor %}
+                                {% endif %}
+                            ];
+
+                            const gapPathData = [
+                                {% if result.events and result.events[0].path_points %}
+                                    {% for p in result.events[0].path_points %}
+                                        {{ p.pct }}{% if not loop.last %},{% endif %}
+                                    {% endfor %}
+                                {% endif %}
+                            ];
+
+                            if (
+                                document.getElementById("gapPathChart") &&
+                                gapPathLabels.length > 0
+                            ) {
+                                const premarketBackgroundPlugin = {
+
+                                    id: "premarketBackground",
+
+                                    beforeDraw(chart) {
+
+                                        const {
+                                            ctx,
+                                            chartArea,
+                                            scales
+                                        } = chart;
+
+                                        if (!chartArea) return;
+
+                                        const labels = chart.data.labels;
+
+                                        const openIndex = labels.findIndex(
+                                            l => l.includes("Open")
+                                        );
+
+                                        if (openIndex <= 0) return;
+
+                                        const xScale = scales.x;
+
+                                        const left = chartArea.left;
+
+                                        const right = xScale.getPixelForValue(openIndex);
+
+                                        ctx.save();
+
+                                        // PREMARKET BACKGROUND
+                                        ctx.fillStyle = "rgba(59,130,246,0.08)";
+
+                                        ctx.fillRect(
+                                            left,
+                                            chartArea.top,
+                                            right - left,
+                                            chartArea.bottom - chartArea.top
+                                        );
+
+                                        // OPEN LINE
+                                        ctx.strokeStyle = "rgba(255,255,255,0.25)";
+                                        ctx.lineWidth = 1;
+
+                                        ctx.beginPath();
+
+                                        ctx.moveTo(right, chartArea.top);
+
+                                        ctx.lineTo(right, chartArea.bottom);
+
+                                        ctx.stroke();
+
+                                        // OPEN LABEL
+                                        ctx.fillStyle = "rgba(255,255,255,0.65)";
+                                        ctx.font = "12px Arial";
+
+                                        ctx.fillText(
+                                            "MARKET OPEN",
+                                            right + 8,
+                                            chartArea.top + 16
+                                        );
+
+                                        ctx.restore();
+                                    }
+                                };
+                                new Chart(document.getElementById("gapPathChart"), {
+
+                                    type: "line",
+
+                                    plugins: [premarketBackgroundPlugin],
+
+                                    data: {
+
+                                        labels: gapPathLabels,
+
+                                        datasets: [{
+                                            label: "% vs Previous Close",
+
+                                            data: gapPathData,
+
+                                            borderColor: "#38bdf8",
+
+                                            backgroundColor: "rgba(56, 189, 248, 0.15)",
+
+                                            tension: 0.25,
+
+                                            pointRadius: 5,
+
+                                            pointHoverRadius: 7,
+
+                                            fill: true
+                                        }]
+                                    },
+
+                                    options: {
+
+                                        responsive: true,
+
+                                        maintainAspectRatio: false,
+
+                                        plugins: {
+
+                                            legend: {
+
+                                                labels: {
+                                                    color: "#cbd5e1"
+                                                }
+                                            }
+                                        },
+
+                                        scales: {
+
+                                            x: {
+
+                                                ticks: {
+                                                    color: "#cbd5e1"
+                                                },
+
+                                                grid: {
+                                                    color: "rgba(148, 163, 184, 0.15)"
+                                                }
+                                            },
+
+                                            y: {
+
+                                                ticks: {
+
+                                                    color: "#cbd5e1",
+
+                                                    callback: function(value) {
+                                                        return value + "%";
+                                                    }
+                                                },
+
+                                                grid: {
+                                                    color: "rgba(148, 163, 184, 0.15)"
+                                                }
+                                            }
+                                        }
+                                    }
+                                });
+                            }
 
                         new Chart(document.getElementById("closeDistChart"), {
                             type: "bar",
@@ -535,6 +1110,284 @@
                                 }
                             }
                         });
+                        {% for row in result.events[:12] %}
+
+                    const miniLabels{{ loop.index }} = [
+                        {% for p in row.path_points %}
+                            "{{ p.label }}"{% if not loop.last %},{% endif %}
+                        {% endfor %}
+                    ];
+
+                    const miniData{{ loop.index }} = [
+                        {% for p in row.path_points %}
+                            {{ p.pct }}{% if not loop.last %},{% endif %}
+                        {% endfor %}
+                    ];
+
+                    new Chart(
+                        document.getElementById("miniPathChart{{ loop.index }}"),
+                        {
+
+                            type: "line",
+
+                            data: {
+
+                                labels: miniLabels{{ loop.index }},
+
+                                datasets: [{
+
+                                    data: miniData{{ loop.index }},
+
+                                    borderColor: "#38bdf8",
+
+                                    backgroundColor: "rgba(56, 189, 248, 0.08)",
+
+                                    tension: 0.25,
+
+                                    pointRadius: 3,
+
+                                    pointHoverRadius: 5,
+
+                                    fill: true
+                                }]
+                            },
+
+                            options: {
+
+                                responsive: true,
+
+                                maintainAspectRatio: false,
+
+                                plugins: {
+
+                                    legend: {
+                                        display: false
+                                    }
+                                },
+
+                                scales: {
+
+                                    x: {
+
+                                        ticks: {
+                                            color: "#94a3b8",
+                                            maxRotation: 0,
+                                            autoSkip: true
+                                        },
+
+                                        grid: {
+                                            color: "rgba(148,163,184,0.08)"
+                                        }
+                                    },
+
+                                    y: {
+
+                                        ticks: {
+                                            color: "#94a3b8",
+
+                                            callback: function(value) {
+                                                return value + "%";
+                                            }
+                                        },
+
+                                        grid: {
+                                            color: "rgba(148,163,184,0.08)"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    );
+
+                    {% endfor %}
+
+                    const averageGapLabels = [
+                        {% for label in result.average_path["labels"] %}
+                            "{{ label }}"{% if not loop.last %},{% endif %}
+                        {% endfor %}
+                    ];
+
+                    const averageGapData = [
+                        {% for value in result.average_path["values"] %}
+                            {{ value if value is not none else 0 }}{% if not loop.last %},{% endif %}
+                        {% endfor %}
+                    ];
+
+                    new Chart(
+                        document.getElementById("averageGapChart"),
+                        {
+
+                            type: "line",
+
+                            data: {
+
+                                labels: averageGapLabels,
+
+                                datasets: [{
+
+                                    label: "Average Gap Path",
+
+                                    data: averageGapData,
+
+                                    borderColor: "#22c55e",
+
+                                    backgroundColor: "rgba(34,197,94,0.10)",
+
+                                    tension: 0.25,
+
+                                    pointRadius: 5,
+
+                                    pointHoverRadius: 7,
+
+                                    fill: true
+                                }]
+                            },
+
+                            options: {
+
+                                responsive: true,
+
+                                maintainAspectRatio: false,
+
+                                plugins: {
+
+                                    legend: {
+
+                                        labels: {
+                                            color: "#cbd5e1"
+                                        }
+                                    }
+                                },
+
+                                scales: {
+
+                                    x: {
+
+                                        ticks: {
+                                            color: "#cbd5e1"
+                                        },
+
+                                        grid: {
+                                            color: "rgba(148,163,184,0.15)"
+                                        }
+                                    },
+
+                                    y: {
+
+                                        ticks: {
+
+                                            color: "#cbd5e1",
+
+                                            callback: function(value) {
+                                                return value + "%";
+                                            }
+                                        },
+
+                                        grid: {
+                                            color: "rgba(148,163,184,0.15)"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    );
+                    const highTimeLabels = [
+                        {% for row in result.high_time_histogram %}
+                            "{{ row.bucket }}"{% if not loop.last %},{% endif %}
+                        {% endfor %}
+                    ];
+
+                    const highTimeData = [
+                        {% for row in result.high_time_histogram %}
+                            {{ row.pct }}{% if not loop.last %},{% endif %}
+                        {% endfor %}
+                    ];
+
+                    new Chart(document.getElementById("highTimeHistogramChart"), {
+                        type: "bar",
+                        data: {
+                            labels: highTimeLabels,
+                            datasets: [{
+                                label: "% Highs",
+                                data: highTimeData,
+                                backgroundColor: "#22c55e"
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    labels: { color: "#cbd5e1" }
+                                }
+                            },
+                            scales: {
+                                x: {
+                                    ticks: { color: "#cbd5e1" },
+                                    grid: { color: "rgba(148,163,184,0.15)" }
+                                },
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        color: "#cbd5e1",
+                                        callback: function(value) {
+                                            return value + "%";
+                                        }
+                                    },
+                                    grid: { color: "rgba(148,163,184,0.15)" }
+                                }
+                            }
+                        }
+                    });
+
+                    const lowTimeLabels = [
+                        {% for row in result.low_time_histogram %}
+                            "{{ row.bucket }}"{% if not loop.last %},{% endif %}
+                        {% endfor %}
+                    ];
+
+                    const lowTimeData = [
+                        {% for row in result.low_time_histogram %}
+                            {{ row.pct }}{% if not loop.last %},{% endif %}
+                        {% endfor %}
+                    ];
+
+                    new Chart(document.getElementById("lowTimeHistogramChart"), {
+                        type: "bar",
+                        data: {
+                            labels: lowTimeLabels,
+                            datasets: [{
+                                label: "% Lows",
+                                data: lowTimeData,
+                                backgroundColor: "#ef4444"
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: {
+                                    labels: { color: "#cbd5e1" }
+                                }
+                            },
+                            scales: {
+                                x: {
+                                    ticks: { color: "#cbd5e1" },
+                                    grid: { color: "rgba(148,163,184,0.15)" }
+                                },
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        color: "#cbd5e1",
+                                        callback: function(value) {
+                                            return value + "%";
+                                        }
+                                    },
+                                    grid: { color: "rgba(148,163,184,0.15)" }
+                                }
+                            }
+                        }
+                    });
                     </script>
 
                     {% endif %}
